@@ -1,4 +1,4 @@
-# Architecture — pr-rakshaka
+# Architecture - pr-rakshaka
 
 ## What it is
 
@@ -11,88 +11,35 @@ The LLM is the brain of the system, not a formatter bolted on at the end.
 ## How it works end-to-end
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│  INPUT: GitHub PR URL                                           │
-│  e.g. https://github.com/org/repo/pull/42                       │
-└───────────────────────┬─────────────────────────────────────────┘
-                        │
-                        ▼
-┌─────────────────────────────────────────────────────────────────┐
-│  pr_parser.py — PR Ingestion Layer                              │
-│  • Calls GitHub REST API (/pulls/{n} and /pulls/{n}/files)      │
-│  • Extracts unified diff patches from each changed file         │
-│  • Captures metadata: author, title, additions, deletions       │
-│  • Returns structured PullRequest + PRFile dataclasses          │
-└───────────────────────┬─────────────────────────────────────────┘
-                        │  raw diffs + file list
-                        ▼
-┌─────────────────────────────────────────────────────────────────┐
-│  RAG Context Builder — Codebase Memory Layer                    │
-│  • ChromaDB vector store, indexed from real open-source PRs     │
-│    (scikit-learn, FastAPI, Pandas, Airflow)                     │
-│  • sentence-transformers (all-MiniLM-L6-v2) for embedding       │
-│  • For each changed file, retrieves top-3 semantically          │
-│    similar existing code chunks from the indexed codebase       │
-│  • Gives the LLM the answer to "does this already exist?"       │
-└───────────────────────┬─────────────────────────────────────────┘
-                        │  diff + retrieved similar code chunks
-                        ▼
-┌─────────────────────────────────────────────────────────────────┐
-│  Three LLM Checks (Groq API — Llama 3.1)                        │
-│  Each check is a focused prompt. LLM reads the real diff.       │
-│  Evidence must be cited from actual lines or it is dropped.     │
-│                                                                 │
-│  ┌───────────────────────────────────────────────────────────┐  │
-│  │  Check 1 — Missing Tests                                  │  │
-│  │  "Does this diff introduce logic that needs a test?       │  │
-│  │   Was one written? Point to the line or stay silent."     │  │
-│  │  Pre-signal: coverage diff via pytest-cov                 │  │
-│  └───────────────────────────────────────────────────────────┘  │
-│                                                                 │
-│  ┌───────────────────────────────────────────────────────────┐  │
-│  │  Check 2 — Possible Reuse / Duplication                   │  │
-│  │  "Here is the diff. Here are the 3 most similar existing  │  │
-│  │   functions in the codebase. Is this reinventing          │  │
-│  │   something? Name the existing one or stay silent."       │  │
-│  │  High similarity (>0.92 cosine): flagged as duplication.  │  │
-│  │  Moderate similarity: flagged as possible reuse.          │  │
-│  └───────────────────────────────────────────────────────────┘  │
-│                                                                 │
-│  ┌───────────────────────────────────────────────────────────┐  │
-│  │  Check 3 — Hot-path Smells + Complexity                   │  │
-│  │  "Does this diff introduce known anti-patterns?           │  │
-│  │   N+1 queries, bare excepts, mutable defaults, etc.       │  │
-│  │   Quote the exact lines or stay silent."                  │  │
-│  │  Pre-signal: radon cyclomatic complexity on changed funcs │  │
-│  └───────────────────────────────────────────────────────────┘  │
-└───────────────────────┬─────────────────────────────────────────┘
-                        │  raw findings (may include hallucinations)
-                        ▼
-┌─────────────────────────────────────────────────────────────────┐
-│  Evidence Aggregator — Hallucination Filter                     │
-│  • Every finding must quote a specific line from the diff       │
-│  • No line cited → finding is silently dropped                  │
-│  • LLM cannot say "this probably needs a test" —               │
-│    it must say "line 47 adds a branch with no test"             │
-│  • Survivors are structured findings with file + line evidence  │
-└───────────────────────┬─────────────────────────────────────────┘
-                        │  verified findings only
-                        ▼
-┌─────────────────────────────────────────────────────────────────┐
-│  Report Generator                                               │
-│  • Final LLM pass synthesises findings into a review comment    │
-│  • Tone: constructive, specific, not a wall of warnings         │
-│  • Output: structured dict → rendered Markdown                  │
-└───────────────────────┬─────────────────────────────────────────┘
-                        │
-                        ▼
-┌─────────────────────────────────────────────────────────────────┐
-│  Streamlit Dashboard — app.py                                   │
-│  • Paste PR URL, click Analyse                                  │
-│  • Shows each finding with evidence snippet and diff context    │
-│  • Green / amber / red verdict per check                        │
-│  • Raw diff viewer alongside the findings                       │
-└─────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    A["🔗 GitHub PR URL\ne.g. github.com/org/repo/pull/42"]
+
+    A --> B["📥 pr_parser.py — PR Ingestion\nGitHub REST API · extracts unified diff patches\nreturns PullRequest + PRFile dataclasses"]
+
+    B --> C["🧠 RAG Context Builder — Codebase Memory\nChromaDB vector store · all-MiniLM-L6-v2 embeddings\nretrieves top-3 similar code chunks per changed file"]
+
+    B --> D1
+    B --> D2
+    B --> D3
+    C --> D2
+
+    subgraph checks["⚙️ Three LLM Checks  —  Groq API · Llama 3.1"]
+        D1["🧪 Check 1 · Missing Tests\nDid new logic get a test written?\nPre-signal: pytest-cov coverage diff"]
+        D2["♻️ Check 2 · Possible Reuse / Duplication\nDoes this already exist in the codebase?\nRAG context · cosine > 0.92 = duplication"]
+        D3["🔥 Check 3 · Hot-path Smells\nN+1 queries · bare excepts · mutable defaults?\nPre-signal: radon cyclomatic complexity"]
+    end
+
+    D1 --> E
+    D2 --> E
+    D3 --> E
+
+    E["🛡️ Evidence Aggregator — Hallucination Filter\nEvery finding must cite a specific line from the diff\nNo line cited → finding is silently dropped"]
+
+    E --> F["📝 Report Generator\nFinal LLM pass synthesises verified findings\ninto a structured Markdown review comment"]
+
+    F --> G["📊 Streamlit Dashboard\nPaste PR URL · click Analyse\nFindings + evidence snippets + diff viewer"]
+```
 ```
 
 ---
