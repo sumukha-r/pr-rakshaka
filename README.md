@@ -10,13 +10,13 @@ An LLM-powered pull request reviewer that reads your diffs the way a senior engi
 
 You paste a GitHub PR URL. pr-rakshaka fetches the diff, reads it, and runs three focused checks:
 
-**1 — Missing Tests**
+**Missing Tests**
 Did this change introduce logic that can fail silently under edge inputs? Is there any evidence a test was written for it? If not, it tells you exactly which function or branch was left uncovered and why it matters.
 
-**2 — Possible Reuse / Duplication**
+**Possible Reuse / Duplication**
 Does this new code reinvent something that already exists in the codebase? Using vector search over the indexed repo, the LLM is shown the most similar existing functions. If the PR is duplicating logic, it names the original. If the similarity is high enough, it calls it a duplication outright.
 
-**3 — Hot-path Smells**
+**Hot-path Smells**
 Does the diff introduce known anti-patterns - N+1 queries, bare `except:` clauses, mutable default arguments, blocking calls in async functions? The LLM quotes the exact lines, not a vague warning.
 
 If there is no concrete evidence for a finding, nothing is said. The reviewer stays silent rather than guessing.
@@ -79,9 +79,9 @@ streamlit run app.py
 |---|---|
 | PR ingestion (`pr_parser.py`) | ✅ done |
 | RAG indexer + retriever | 🔨 in progress |
-| Check 1 — Missing Tests | ⏳ pending |
-| Check 2 — Possible Reuse | ⏳ pending |
-| Check 3 — Hot-path Smells | ⏳ pending |
+| Check 1 - Missing Tests | ⏳ pending |
+| Check 2 - Possible Reuse | ⏳ pending |
+| Check 3 - Hot-path Smells | ⏳ pending |
 | Evidence aggregator | ⏳ pending |
 | Report generator | ⏳ pending |
 | Streamlit UI | ⏳ pending |
