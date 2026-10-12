@@ -11,6 +11,7 @@ The LLM is the brain of the system, not a formatter bolted on at the end.
 ## How it works end-to-end
 
 ```
+
 ```mermaid
 flowchart TD
     A["🔗 GitHub PR URL\ne.g. github.com/org/repo/pull/42"]
@@ -40,7 +41,7 @@ flowchart TD
 
     F --> G["📊 Streamlit Dashboard\nPaste PR URL · click Analyse\nFindings + evidence snippets + diff viewer"]
 ```
-```
+
 
 ---
 
