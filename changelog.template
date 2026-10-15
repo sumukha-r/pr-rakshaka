@@ -1,5 +1,10 @@
 # v0.2.1
 
+Added RAG retriever to obtain similar functions/classes from diff chunks
+15-10-2026 14:00 by sumukha0000@gmail.com
+
+# v0.2.1
+
 Added RAG indexer to index PRs and store into ChromaDB
 14-10-2026 14:00 by sumukha0000@gmail.com
 
