@@ -7,5 +7,4 @@ data/raw/
 *.egg-info/
 .venv/
 data/chroma_db/
-mlruns/
 *.ipynb_checkpoints
