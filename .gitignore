@@ -6,6 +6,6 @@ __pycache__/
 data/raw/
 *.egg-info/
 .venv/
-chroma_db/
+data/chroma_db/
 mlruns/
 *.ipynb_checkpoints

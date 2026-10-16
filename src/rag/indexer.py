@@ -59,7 +59,7 @@ class CodeChunk:
     @property
     def chunk_id(self) -> str:
         """Stable ID: sha256 of repo + filepath + symbol."""
-        raw = f"{self.repo}::{self.filepath}::{self.symbol}"
+        raw = f"{self.repo}::{self.filepath}::{self.symbol}::{self.start_line}"
         return hashlib.sha256(raw.encode()).hexdigest()[:16]
 
     @property
@@ -144,6 +144,15 @@ def _fetch_file(repo: str, path: str, token: Optional[str]) -> Optional[str]:
 # Step 3 — chunk source into top-level functions and classes via AST
 # ---------------------------------------------------------------------------
 
+def _iter_defs(body, prefix: str = ""):
+    """Yield (symbol_label, node) for functions, classes, and methods."""
+    for node in body:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            yield f"def {prefix}{node.name}", node
+        elif isinstance(node, ast.ClassDef):
+            yield f"class {prefix}{node.name}", node
+            yield from _iter_defs(node.body, prefix=f"{prefix}{node.name}.")
+
 def _chunk_file(repo: str, filepath: str, source: str) -> list[CodeChunk]:
     """
     Parse the file with the AST and extract each top-level function/class
@@ -166,26 +175,15 @@ def _chunk_file(repo: str, filepath: str, source: str) -> list[CodeChunk]:
         ))
         return chunks
 
-    for node in ast.walk(tree):
-        # only top-level definitions (direct children of Module)
-        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-            continue
-        if not isinstance(getattr(node, "parent", None), type(None)):
-            # skip nested; ast doesn't set .parent by default so this is safe
-            pass
-
-        start = node.lineno - 1          # 0-indexed
-        end   = node.end_lineno          # 1-indexed exclusive → slice works
-        symbol_type = "class" if isinstance(node, ast.ClassDef) else "def"
-        symbol_name = f"{symbol_type} {node.name}"
+    for symbol_name, node in _iter_defs(tree.body):
+        start = node.lineno - 1
+        end   = node.end_lineno
 
         chunk_source = textwrap.dedent("".join(lines[start:end]))
 
-        # skip very short stubs (one-liners, pass-only)
         if len(chunk_source.strip().splitlines()) < 3:
             continue
 
-        # truncate huge chunks (e.g. 800-line classes); keep the header
         if len(chunk_source) > MAX_CHUNK_TOKENS * 4:
             chunk_source = chunk_source[:MAX_CHUNK_TOKENS * 4] + "\n    # ... (truncated)"
 
