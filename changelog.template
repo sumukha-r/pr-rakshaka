@@ -1,3 +1,8 @@
+# v0.2.2
+
+Updated RAG indexer helper functions and gitignore
+16-10-2026 18:00 by sumukha0000@gmail.com
+
 # v0.2.1
 
 Added RAG retriever to obtain similar functions/classes from diff chunks
