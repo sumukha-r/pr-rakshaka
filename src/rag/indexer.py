@@ -42,6 +42,25 @@ def _get_embed_model() -> SentenceTransformer:
         _embed_model = SentenceTransformer(EMBED_MODEL)
     return _embed_model
 
+# ---------------------------------------------------------------------------
+# Helper functions
+# ---------------------------------------------------------------------------
+
+def normalize_for_embedding(code: str) -> str:
+    """Strip docstrings and comments/formatting so index and query are comparable.
+    Falls back to the raw text if it doesn't parse (e.g. partial diff fragments)."""
+    try:
+        tree = ast.parse(textwrap.dedent(code))
+    except SyntaxError:
+        return code
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            body = node.body
+            if (body and isinstance(body[0], ast.Expr)
+                    and isinstance(body[0].value, ast.Constant)
+                    and isinstance(body[0].value.value, str)):
+                node.body = body[1:] or [ast.Pass()]
+    return ast.unparse(tree)
 
 # ---------------------------------------------------------------------------
 # Data structures
@@ -64,9 +83,7 @@ class CodeChunk:
 
     @property
     def text_for_embedding(self) -> str:
-        """What we actually embed: filepath + symbol name + source."""
-        return f"# {self.filepath}\n# {self.symbol}\n{self.source}"
-
+        return normalize_for_embedding(self.source)
 
 # ---------------------------------------------------------------------------
 # Step 1 — list Python files in the repo via GitHub tree API
@@ -314,7 +331,6 @@ def index_repo(
         "files_indexed":  files_indexed,
         "chunks_indexed": chunks_indexed,
     }
-
 
 # ---------------------------------------------------------------------------
 # CLI quick-test

@@ -29,8 +29,8 @@ from src.rag.indexer import (
     EMBED_MODEL,
     _collection_name,
     _get_embed_model,
+    normalize_for_embedding,
 )
-
 
 # ---------------------------------------------------------------------------
 # Data structures
@@ -107,7 +107,8 @@ def retrieve_similar(
         return []
 
     model = _get_embed_model()
-    query_embedding = model.encode([query_code], show_progress_bar=False).tolist()
+    query_embedding = model.encode([normalize_for_embedding(query_code)], 
+                                   show_progress_bar=False).tolist()
 
     results = collection.query(
         query_embeddings=query_embedding,
