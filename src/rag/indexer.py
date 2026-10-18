@@ -46,21 +46,37 @@ def _get_embed_model() -> SentenceTransformer:
 # Helper functions
 # ---------------------------------------------------------------------------
 
+_TRIPLE_QUOTED = re.compile(r'(?s)[rRuUbB]{0,2}("""|' + "'''" + r').*?\1')
+
+def _strip_docstrings_and_comments(code: str) -> str:
+    """Regex fallback for code that won't parse (diff fragments)."""
+    code = _TRIPLE_QUOTED.sub("", code)
+    kept = [
+        ln.rstrip() for ln in code.splitlines()
+        if ln.strip() and not ln.strip().startswith("#")
+    ]
+    return "\n".join(kept)
+
+
 def normalize_for_embedding(code: str) -> str:
-    """Strip docstrings and comments/formatting so index and query are comparable.
-    Falls back to the raw text if it doesn't parse (e.g. partial diff fragments)."""
-    try:
-        tree = ast.parse(textwrap.dedent(code))
-    except SyntaxError:
-        return code
-    for node in ast.walk(tree):
-        if isinstance(node, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-            body = node.body
-            if (body and isinstance(body[0], ast.Expr)
-                    and isinstance(body[0].value, ast.Constant)
-                    and isinstance(body[0].value.value, str)):
-                node.body = body[1:] or [ast.Pass()]
-    return ast.unparse(tree)
+    """Drop docstrings/comments/formatting so index and query are comparable."""
+    code = textwrap.dedent(code)
+    # second candidate closes a dangling "def f(...):" with a stub body
+    for candidate in (code, code + "\n    pass"):
+        try:
+            tree = ast.parse(candidate)
+        except SyntaxError:
+            continue
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.Module, ast.FunctionDef,
+                                 ast.AsyncFunctionDef, ast.ClassDef)):
+                body = node.body
+                if (body and isinstance(body[0], ast.Expr)
+                        and isinstance(body[0].value, ast.Constant)
+                        and isinstance(body[0].value.value, str)):
+                    node.body = body[1:] or [ast.Pass()]
+        return ast.unparse(tree)   # unparse also drops comments
+    return _strip_docstrings_and_comments(code)
 
 # ---------------------------------------------------------------------------
 # Data structures
