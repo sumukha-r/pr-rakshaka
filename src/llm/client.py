@@ -4,7 +4,8 @@ client.py — thin Groq wrapper used by every pr-rakshaka check.
 Responsibilities (and nothing more):
   * one place that talks to the Groq API
   * retries with backoff on rate limits / network blips / 5xx
-  * give up fast on errors retrying cannot fix (bad key, oversized prompt)
+  * give up fast on errors retrying cannot fix (bad key, retired model,
+    oversized prompt)
   * `chat_json()` — ask for a JSON object and parse it defensively
 
 Usage:
@@ -16,10 +17,19 @@ Usage:
     )
 
 Env vars:
-    GROQ_API_KEY         required (free at console.groq.com)
-    GROQ_MODEL           default "llama-3.1-8b-instant"
-    GROQ_FALLBACK_MODEL  optional, e.g. "llama-3.3-70b-versatile" — tried once
-                         if the primary model's rate limit is exhausted
+    GROQ_API_KEY           required (free at console.groq.com)
+    GROQ_MODEL             default "openai/gpt-oss-20b"
+    GROQ_FALLBACK_MODEL    optional, e.g. "openai/gpt-oss-120b" — tried if the
+                           primary model's rate limit is exhausted
+    GROQ_REASONING_EFFORT  "low" (default) | "medium" | "high" — only used for
+                           the gpt-oss models, which are reasoning models
+
+Groq retires models often (llama-3.1-8b-instant stopped working on free
+accounts on 2026-08-16). If 404 "model not found", run:
+
+    python -m src.llm.client --models
+
+to list what your key can use, then set GROQ_MODEL.
 """
 
 import json
@@ -43,14 +53,20 @@ log = logging.getLogger(__name__)
 # Config
 # ---------------------------------------------------------------------------
 
-DEFAULT_MODEL  = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
-FALLBACK_MODEL = os.getenv("GROQ_FALLBACK_MODEL", "")
+DEFAULT_MODEL    = os.getenv("GROQ_MODEL", "openai/gpt-oss-20b")
+FALLBACK_MODEL   = os.getenv("GROQ_FALLBACK_MODEL", "")
+REASONING_EFFORT = os.getenv("GROQ_REASONING_EFFORT", "low")
+
+# Reasoning models spend part of the output budget on hidden thinking
+DEFAULT_MAX_TOKENS = 2048
+
+# Models that accept reasoning_effort / include_reasoning.
+_REASONING_MODELS = ("openai/gpt-oss-20b", "openai/gpt-oss-120b")
 
 MAX_ATTEMPTS   = 4        # total tries per model
 BASE_BACKOFF_S = 2.0      # 2s, 4s, 8s ... when the server gives no retry-after
-MAX_WAIT_S     = 65.0     # a per-minute limit resets within ~60s; longer than
-                          # this means a daily quota, so don't sit and wait
-TIMEOUT_S      = 45.0
+MAX_WAIT_S     = 65.0     # a per-minute limit resets within ~60s
+TIMEOUT_S      = 60.0
 
 
 class LLMError(RuntimeError):
@@ -92,6 +108,14 @@ def _retry_after_seconds(exc: Exception) -> Optional[float]:
         return None
 
 
+def _model_extras(model: str) -> dict:
+    """Extra request fields for models that need them (sent via extra_body so
+    this works across Groq SDK versions)."""
+    if model in _REASONING_MODELS:
+        return {"reasoning_effort": REASONING_EFFORT, "include_reasoning": False}
+    return {}
+
+
 def _call_model(model: str, messages: list[dict], *, temperature: float,
                 max_tokens: int, json_mode: bool) -> str:
     """One model, up to MAX_ATTEMPTS tries. Raises RateLimitError if still limited."""
@@ -104,6 +128,9 @@ def _call_model(model: str, messages: list[dict], *, temperature: float,
     )
     if json_mode:
         kwargs["response_format"] = {"type": "json_object"}
+    extras = _model_extras(model)
+    if extras:
+        kwargs["extra_body"] = extras
 
     last_exc: Exception = RuntimeError("no attempt made")
     for attempt in range(1, MAX_ATTEMPTS + 1):
@@ -113,7 +140,15 @@ def _call_model(model: str, messages: list[dict], *, temperature: float,
             if usage:
                 log.debug("groq %s tokens: prompt=%s completion=%s",
                           model, usage.prompt_tokens, usage.completion_tokens)
-            return resp.choices[0].message.content or ""
+            choice = resp.choices[0]
+            text = choice.message.content or ""
+            if not text.strip():
+                log.warning(
+                    "empty reply from %s (finish_reason=%s) — a reasoning model "
+                    "may have used the whole max_tokens budget",
+                    model, getattr(choice, "finish_reason", None),
+                )
+            return text
 
         except RateLimitError as exc:
             last_exc = exc
@@ -137,6 +172,12 @@ def _call_model(model: str, messages: list[dict], *, temperature: float,
                 continue
             if code == 401:
                 raise LLMError("Groq rejected the API key (401). Check GROQ_API_KEY.") from exc
+            if code == 404:
+                raise LLMError(
+                    f"Model '{model}' is not available for this API key (404). "
+                    "Groq retires models often. Run `python -m src.llm.client --models` "
+                    "to list what your key can use, then set GROQ_MODEL."
+                ) from exc
             if code == 413:
                 raise LLMError(
                     "Prompt is too large for this model's request/token limit (413). "
@@ -148,7 +189,7 @@ def _call_model(model: str, messages: list[dict], *, temperature: float,
 
 
 def chat(system: str, user: str, *, model: Optional[str] = None,
-         temperature: float = 0.0, max_tokens: int = 1024,
+         temperature: float = 0.0, max_tokens: int = DEFAULT_MAX_TOKENS,
          json_mode: bool = False) -> str:
     """Send one system+user exchange and return the raw text reply."""
     messages = [
@@ -168,8 +209,8 @@ def chat(system: str, user: str, *, model: Optional[str] = None,
             except RateLimitError as exc2:
                 exc = exc2
         raise LLMError(
-            "Groq rate limit reached (free tier is ~30 requests/min and "
-            "~6,000 tokens/min for the 8B model). Wait a minute and retry."
+            "Groq rate limit reached (the free tier has per-minute token and "
+            "daily request caps). Wait a minute and retry."
         ) from exc
 
 
@@ -199,7 +240,7 @@ def parse_json_object(text: str) -> dict:
 
 
 def chat_json(system: str, user: str, *, model: Optional[str] = None,
-              temperature: float = 0.0, max_tokens: int = 1024) -> dict:
+              temperature: float = 0.0, max_tokens: int = DEFAULT_MAX_TOKENS) -> dict:
     """
     Ask for a JSON object and return it parsed. If the first reply isn't
     valid JSON, retries once with a stricter reminder before giving up.
@@ -225,12 +266,23 @@ def chat_json(system: str, user: str, *, model: Optional[str] = None,
 
 
 # ---------------------------------------------------------------------------
-# CLI smoke test:  python -m src.llm.client
+# CLI:  python -m src.llm.client            smoke test
+#       python -m src.llm.client --models   list models this key can use
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
-    out = chat_json(
-        system="You are a connectivity test.",
-        user='Return {"ok": true, "model_says": "<one short sentence>"}',
-    )
-    print(out)
+    import sys
+
+    try:
+        if "--models" in sys.argv:
+            for model_id in sorted(m.id for m in _get_client().models.list().data):
+                print(model_id)
+        else:
+            print(f"[client] using model: {DEFAULT_MODEL}")
+            print(chat_json(
+                system="You are a connectivity test.",
+                user='Return {"ok": true, "model_says": "<one short sentence>"}',
+            ))
+    except LLMError as err:
+        print(f"[client] {err}")
+        sys.exit(1)
