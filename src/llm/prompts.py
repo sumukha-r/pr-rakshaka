@@ -71,6 +71,12 @@ logging, constants, or configuration. Do NOT flag logic that a changed test \
 file clearly covers. When unsure, return no findings. Silence is better than \
 a guess.
 
+Before flagging, compare the removed lines ('-') with the added lines ('+'). \
+If the added lines compute the same thing as the removed ones and only rename \
+variables, add type hints, reformat, or reorder code, this is a refactor and \
+the behaviour is unchanged: return no findings. Only flag behaviour that is \
+new or different from what the removed lines did.
+
 Every finding MUST include an "evidence" field: ONE line copied exactly from \
 the added lines ('+' lines) of the source diff, without the leading '+'. If \
 you cannot quote such a line, you have no finding. Never invent or paraphrase \
