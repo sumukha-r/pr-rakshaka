@@ -1,16 +1,19 @@
 """
 missing_tests.py — Check 1: did this PR add logic that needs a test?
 
-The LLM makes the judgement. Python only does the plumbing around it:
+The LLM makes the judgement. Python only does the cheap plumbing around it:
 pick which files are worth a call (token budget), build the prompt, parse the
 reply, and drop any finding whose quoted line is not really in the diff.
 
 Usage:
-    python -m src.checks.missing_tests https://github.com/owner/repo/pull/123
+    python -m src.checks.missing_tests <PR URL>                    # active backend
+    python -m src.checks.missing_tests <PR URL> --provider groq    # force one
+    python -m src.checks.missing_tests <PR URL> --compare          # local vs Groq
 """
 
 import logging
 import os
+from typing import Optional
 
 from src.ingestion.pr_parser import PRFile, PullRequest
 from src.llm.aggregator import Finding, added_lines, keep_evidenced
@@ -71,9 +74,13 @@ def _review_file(pr: PullRequest, f: PRFile,
     return findings
 
 
-def check_missing_tests(pr: PullRequest, *,
-                        max_files: int = MAX_SOURCE_FILES) -> list[Finding]:
-    """Run Check 1 over a PR. Returns only evidence-backed findings."""
+def check_missing_tests(pr: PullRequest, *, max_files: int = MAX_SOURCE_FILES,
+                        report: Optional[dict] = None) -> list[Finding]:
+    """
+    Run Check 1 over a PR. Returns only evidence-backed findings.
+    If `report` is given it is filled with {"files_sent", "raw_findings",
+    "dropped"}, which is how backends are compared.
+    """
     test_files = [
         (f.filename, f.patch)
         for f in pr.files
@@ -92,6 +99,9 @@ def check_missing_tests(pr: PullRequest, *,
         findings.extend(_review_file(pr, f, test_files))
 
     kept, dropped = keep_evidenced(findings, patches)
+    if report is not None:
+        report.update(files_sent=len(candidates), raw_findings=len(findings),
+                      dropped=len(dropped))
     if dropped:
         log.info("missing_tests: dropped %d finding(s) with no matching diff line",
                  len(dropped))
@@ -104,19 +114,38 @@ def check_missing_tests(pr: PullRequest, *,
 # CLI
 # ---------------------------------------------------------------------------
 
+def _format(findings: list[Finding]) -> str:
+    if not findings:
+        return "No missing-test findings."
+    return "\n".join(
+        f"{f.filename}\n  evidence: {f.evidence.strip()}\n  {f.message}\n"
+        for f in findings
+    )
+
+
 if __name__ == "__main__":
-    import sys
+    import argparse
+
     from src.ingestion.pr_parser import fetch_pr_from_url
+    from src.llm.client import PROVIDERS, use_provider
+    from src.llm.compare import print_comparison, run_with_each
+
+    ap = argparse.ArgumentParser(prog="python -m src.checks.missing_tests")
+    ap.add_argument("url", help="GitHub PR URL")
+    ap.add_argument("--provider", choices=PROVIDERS, help="force a backend")
+    ap.add_argument("--compare", action="store_true",
+                    help="run the PR through local and Groq and compare")
+    args = ap.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="[%(name)s] %(message)s")
-    if len(sys.argv) < 2:
-        sys.exit("usage: python -m src.checks.missing_tests <PR URL>")
-
-    pr = fetch_pr_from_url(sys.argv[1], token=os.getenv("GITHUB_TOKEN"))
+    pr = fetch_pr_from_url(args.url, token=os.getenv("GITHUB_TOKEN"))
     print(f"PR #{pr.number}: {pr.title} ({len(pr.files)} files)")
 
-    results = check_missing_tests(pr)
-    if not results:
-        print("No missing-test findings.")
-    for r in results:
-        print(f"\n{r.filename}\n  evidence: {r.evidence.strip()}\n  {r.message}")
+    if args.compare:
+        outcomes = run_with_each(lambda rep: check_missing_tests(pr, report=rep))
+        print_comparison(outcomes, show=_format)
+    elif args.provider:
+        with use_provider(args.provider):
+            print(_format(check_missing_tests(pr)))
+    else:
+        print(_format(check_missing_tests(pr)))
