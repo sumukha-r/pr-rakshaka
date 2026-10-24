@@ -1,6 +1,11 @@
+# v0.4.5
+
+Added llm and rag tests for check 1 (fake cases)
+24-10-2026 12:40 by sumukha0000@gmail.com
+
 # v0.4.4
 
-Added integration tests check 1 (fake cases)
+Added integration tests for check 1 (fake cases)
 23-10-2026 13:50 by sumukha0000@gmail.com
 
 # v0.4.3
