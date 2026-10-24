@@ -55,7 +55,7 @@ def run_with_each(fn: Callable[[dict], Any],
 
 def print_comparison(outcomes: list[Outcome],
                      show: Callable[[Any], str] = str) -> None:
-    extra_keys = sorted({k for o in outcomes for k in o.report})
+    extra_keys = sorted({k for o in outcomes for k in o.report if not k.startswith("_")})
     cols = ["backend", "model", "time(s)", "calls", "prompt tok", "output tok"] + extra_keys
     rows = [
         [o.provider, o.model or "-", f"{o.seconds:.1f}", str(o.calls),

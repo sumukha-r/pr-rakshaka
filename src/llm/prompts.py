@@ -3,6 +3,7 @@ prompts.py — prompt text and prompt-building helpers shared by the checks.
 
 Kept separate from the checks so prompts can be tuned without touching logic,
 and so the token-budget helpers (trim_patch) live in one place.
+
 """
 
 import re
@@ -82,6 +83,13 @@ the added lines ('+' lines) of the source diff, without the leading '+'. If \
 you cannot quote such a line, you have no finding. Never invent or paraphrase \
 code.
 
+Think before you decide. Start your JSON object with an "analysis" field of \
+2-4 sentences covering: (1) what the removed lines did versus what the added \
+lines do, and whether the behaviour is new or different; (2) which changed \
+test lines, if any, actually call the new or changed behaviour. Only after \
+that, fill "findings". If your analysis says the behaviour is unchanged, or \
+that a changed test exercises it, "findings" must be empty.
+
 Keep "message" to one or two sentences saying what behaviour is untested.\
 """
 
@@ -110,7 +118,8 @@ def build_missing_tests_prompt(
         f"```diff\n{trim_patch(patch, max_patch_chars)}\n```\n\n"
         f"## Test files changed in this pull request\n{tests_block}\n\n"
         "Return a JSON object of this shape:\n"
-        '{"findings": [{"evidence": "<exact added line>", '
+        '{"analysis": "<2-4 sentences>", '
+        '"findings": [{"evidence": "<exact added line>", '
         '"message": "<what is untested>"}]}\n'
-        'Use {"findings": []} if there is nothing to flag.'
+        'Write "analysis" first. Use "findings": [] if there is nothing to flag.'
     )

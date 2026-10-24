@@ -378,6 +378,8 @@ def _make_runner(cases: list[dict]):
             except LLMError as exc:
                 row["error"] = str(exc)
             row["seconds"] = time.monotonic() - start
+            row["analyses"] = rep.get("_analyses", [])
+            row["dropped"] = rep.get("_dropped", [])
             row["ok"] = (not row["error"]) and (
                 bool(row["findings"]) == (case["expect"] == "flag"))
             correct += row["ok"]
@@ -390,7 +392,7 @@ def _make_runner(cases: list[dict]):
     return run_all
 
 
-def _show(rows: list[dict] | None) -> str:
+def _show(rows: list[dict] | None, verbose: bool = False) -> str:
     out = []
     for r in rows or []:
         c = r["case"]
@@ -403,6 +405,13 @@ def _show(rows: list[dict] | None) -> str:
         for f in r["findings"]:
             out.append(f"      evidence: {f.evidence.strip()}")
             out.append(f"      says:     {f.message}")
+        # findings the evidence filter removed: the model quoted a line that is not in the diff
+        for d in r.get("dropped", []):
+            out.append(f"      DROPPED (quote not in diff): {d.evidence.strip()!r}")
+            out.append(f"                  it said: {d.message}")
+        if verbose:
+            for name, analysis in r.get("analyses", []):
+                out.append(f"      analysis: {analysis or '(none returned)'}")
     return "\n".join(out)
 
 
@@ -450,6 +459,8 @@ def main(argv: list[str] | None = None) -> None:
     ap.add_argument("--only", choices=[c["name"] for c in CASES],
                     help="run a single case")
     ap.add_argument("--level", choices=LEVELS, help="run only one difficulty")
+    ap.add_argument("-v", "--verbose", action="store_true",
+                    help="also print each model's analysis text")
     args = ap.parse_args(argv)
 
     logging.basicConfig(level=logging.WARNING, format="[%(name)s] %(message)s")
@@ -459,7 +470,7 @@ def main(argv: list[str] | None = None) -> None:
     providers = [args.provider] if args.provider else ["local", "groq"]
 
     outcomes = run_with_each(_make_runner(cases), providers)
-    print_comparison(outcomes, show=_show)
+    print_comparison(outcomes, show=lambda rows: _show(rows, verbose=args.verbose))
     if len(outcomes) > 1:
         _print_matrix(outcomes, cases)
     print("\nNote: the first local call includes loading the model into GPU "

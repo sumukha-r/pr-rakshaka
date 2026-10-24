@@ -52,17 +52,20 @@ def _candidate_files(pr: PullRequest) -> list[PRFile]:
 
 
 def _review_file(pr: PullRequest, f: PRFile,
-                 test_files: list[tuple[str, str]]) -> list[Finding]:
+                 test_files: list[tuple[str, str]]) -> tuple[list[Finding], str]:
+    """Returns (findings, the model's analysis text)."""
     prompt = build_missing_tests_prompt(pr.title, f.filename, f.patch, test_files)
     log.info("missing_tests: sending %s (~%d tokens)", f.filename,
              (len(prompt) + len(MISSING_TESTS_SYSTEM)) // 4)
 
     reply = chat_json(MISSING_TESTS_SYSTEM, prompt)
+    analysis = reply.get("analysis")
+    analysis = analysis if isinstance(analysis, str) else ""
 
     raw = reply.get("findings", [])
     if not isinstance(raw, list):
         log.warning("missing_tests: 'findings' was not a list for %s", f.filename)
-        return []
+        return [], analysis
 
     findings = []
     for item in raw:
@@ -71,7 +74,7 @@ def _review_file(pr: PullRequest, f: PRFile,
         evidence, message = item.get("evidence"), item.get("message")
         if isinstance(evidence, str) and isinstance(message, str):
             findings.append(Finding(CHECK_NAME, f.filename, evidence, message))
-    return findings
+    return findings, analysis
 
 
 def check_missing_tests(pr: PullRequest, *, max_files: int = MAX_SOURCE_FILES,
@@ -95,13 +98,19 @@ def check_missing_tests(pr: PullRequest, *, max_files: int = MAX_SOURCE_FILES,
 
     patches = {f.filename: f.patch for f in candidates}
     findings: list[Finding] = []
+    analyses: list[tuple[str, str]] = []
     for f in candidates:
-        findings.extend(_review_file(pr, f, test_files))
+        file_findings, analysis = _review_file(pr, f, test_files)
+        findings.extend(file_findings)
+        analyses.append((f.filename, analysis))
 
     kept, dropped = keep_evidenced(findings, patches)
     if report is not None:
         report.update(files_sent=len(candidates), raw_findings=len(findings),
                       dropped=len(dropped))
+        # keys starting with "_" hold details, not table columns
+        report["_analyses"] = analyses
+        report["_dropped"] = dropped
     if dropped:
         log.info("missing_tests: dropped %d finding(s) with no matching diff line",
                  len(dropped))
