@@ -69,6 +69,14 @@ def _runs(patch: str) -> list[tuple[int, list[str]]]:
     return runs
 
 
+def added_line_numbers(patch: str) -> set[int]:
+    """Line numbers, in the NEW file, of every line the diff adds."""
+    out: set[int] = set()
+    for start, lines in _runs(patch):
+        out.update(range(start, start + len(lines)))
+    return out
+
+
 def _walk_defs(body, prefix: str = ""):
     """Functions, classes and methods; not functions nested inside functions."""
     for node in body:

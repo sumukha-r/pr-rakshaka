@@ -12,10 +12,16 @@ provider sanity checks, not the curated real-PR evaluation dataset.
 
 Run from the repository root. "flag" means at least one evidence-backed
 finding is expected; "clean" means no finding is expected.
+
+Two kinds of case: "lines" (a brand-new file, every line added) and "old"/"new"
+(an edit to an existing file, so the diff has unchanged context lines and removed
+lines like a real PR). The edit cases check that the model uses an unchanged
+loop header as context, and does not flag a PR that FIXES a smell.
 """
 from __future__ import annotations
 
 import argparse
+import difflib
 import logging
 import time
 
@@ -30,6 +36,13 @@ LEVELS = ("easy", "medium", "hard")
 def _patch(*lines: str) -> str:
     """Create a GitHub-style all-added hunk from source lines."""
     return f"@@ -0,0 +1,{len(lines)} @@\n" + "\n".join("+" + line for line in lines)
+
+
+def _diff(old: str, new: str) -> str:
+    """Unified diff the way GitHub's `patch` field looks (no ---/+++ header)."""
+    lines = list(difflib.unified_diff(
+        old.splitlines(), new.splitlines(), lineterm="", n=3))
+    return "\n".join(lines[2:]) + "\n"
 
 
 # Keep the fixtures intentionally small and readable. They are smoke tests,
@@ -160,18 +173,133 @@ CASES = [
             "    return list(sorted(records, key=lambda record: record.created_at))",
         ],
     },
+    # --- edits to existing files: the diff has context and removed lines ---------
+    {
+        "name": "body_added_to_existing_loop", "level": "medium", "expect": "flag",
+        "why": "the loop header is unchanged context; the new query line runs once per user",
+        "title": "Show profile photos", "file": "src/profiles.py",
+        "old": (
+            "def build_cards(users):\n"
+            "    cards = []\n"
+            "    for user in users:\n"
+            "        cards.append({\"name\": user.name})\n"
+            "    return cards\n"
+        ),
+        "new": (
+            "def build_cards(users):\n"
+            "    cards = []\n"
+            "    for user in users:\n"
+            "        photo = db.query_photo(user.id)\n"
+            "        cards.append({\"name\": user.name, \"photo\": photo})\n"
+            "    return cards\n"
+        ),
+    },
+    {
+        "name": "cheap_line_added_to_loop", "level": "medium", "expect": "clean",
+        "why": "an unchanged loop plus a cheap counter update is not a performance risk",
+        "title": "Count long names", "file": "src/stats.py",
+        "old": (
+            "def summarise(names):\n"
+            "    total = 0\n"
+            "    for name in names:\n"
+            "        total += len(name)\n"
+            "    return total\n"
+        ),
+        "new": (
+            "def summarise(names):\n"
+            "    total = 0\n"
+            "    long_names = 0\n"
+            "    for name in names:\n"
+            "        total += len(name)\n"
+            "        long_names += len(name) > 10\n"
+            "    return total, long_names\n"
+        ),
+    },
+    {
+        "name": "n_plus_one_fixed", "level": "hard", "expect": "clean",
+        "why": "the PR REMOVES the per-item query and batches it; that is an improvement",
+        "title": "Batch user lookups", "file": "src/users.py",
+        "old": (
+            "def load_users(user_ids):\n"
+            "    users = []\n"
+            "    for user_id in user_ids:\n"
+            "        users.append(db.query_user(user_id))\n"
+            "    return users\n"
+        ),
+        "new": (
+            "def load_users(user_ids):\n"
+            "    return db.query_users(user_ids)\n"
+        ),
+    },
+    {
+        "name": "regex_hoisted_out_of_loop", "level": "hard", "expect": "clean",
+        "why": "the compile moved from inside the loop to before it; the removed line is not new code",
+        "title": "Compile the pattern once", "file": "src/matching.py",
+        "old": (
+            "def match_all(pattern, values):\n"
+            "    results = []\n"
+            "    for value in values:\n"
+            "        results.append(re.compile(pattern).search(value))\n"
+            "    return results\n"
+        ),
+        "new": (
+            "def match_all(pattern, values):\n"
+            "    compiled = re.compile(pattern)\n"
+            "    results = []\n"
+            "    for value in values:\n"
+            "        results.append(compiled.search(value))\n"
+            "    return results\n"
+        ),
+    },
+    {
+        "name": "blocking_call_moved_to_thread", "level": "hard", "expect": "clean",
+        "why": "the blocking call now runs in a worker thread, so the event loop is not stalled",
+        "title": "Do not block the event loop", "file": "src/polling.py",
+        "old": (
+            "async def poll_status():\n"
+            "    time.sleep(2)\n"
+            "    return await fetch_status()\n"
+        ),
+        "new": (
+            "async def poll_status():\n"
+            "    await asyncio.to_thread(time.sleep, 2)\n"
+            "    return await fetch_status()\n"
+        ),
+    },
+    {
+        "name": "blocking_call_added_to_async", "level": "medium", "expect": "flag",
+        "why": "requests.get is added inside an existing async def, which is unchanged context",
+        "title": "Fetch a remote config", "file": "src/config_sync.py",
+        "old": (
+            "async def refresh(app):\n"
+            "    app.state.ready = False\n"
+            "    await app.reload()\n"
+        ),
+        "new": (
+            "async def refresh(app):\n"
+            "    app.state.ready = False\n"
+            "    app.state.config = requests.get(CONFIG_URL).json()\n"
+            "    await app.reload()\n"
+        ),
+    },
 ]
 
 
 def _build_pr(case: dict) -> PullRequest:
-    patch = _patch(*case["lines"])
-    additions = len(case["lines"])
-    f = PRFile(filename=case["file"], status="added", additions=additions,
-               deletions=0, patch=patch)
+    if "old" in case:
+        patch = _diff(case["old"], case["new"])
+        rows = patch.splitlines()
+        additions = sum(1 for r in rows if r.startswith("+"))
+        deletions = sum(1 for r in rows if r.startswith("-"))
+        status = "modified"
+    else:
+        patch, additions, deletions, status = _patch(*case["lines"]), len(case["lines"]), 0, "added"
+    f = PRFile(filename=case["file"], status=status, additions=additions,
+               deletions=deletions, patch=patch)
     return PullRequest(
         repo="demo/demo", number=1, title=case["title"], author="demo",
         state="open", merged=False, body="", additions=additions,
-        deletions=0, changed_files=1, files=[f],
+        deletions=deletions, changed_files=1, files=[f],
     )
 
 

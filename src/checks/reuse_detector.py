@@ -14,6 +14,11 @@ For each new function or class in the PR diff:
   5. Two-sided evidence: the quoted line must be in the diff AND the candidate
      number must be one we actually showed. Otherwise the finding is dropped.
 
+**Known limits.** Check 2 only looks at whole new functions and classes, not code
+added inside an existing function. The evidence filter proves a quote is real,
+not that the judgement is right; the model comparisons so far use hand-written 
+fixtures, and a versioned real-PR evaluation is still to do.
+
 Usage:
     python -m src.checks.reuse_detector <PR URL>
     python -m src.checks.reuse_detector <PR URL> --provider groq

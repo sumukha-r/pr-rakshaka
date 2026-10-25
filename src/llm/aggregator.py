@@ -17,7 +17,8 @@ class Finding:
     evidence: str     # the exact diff code that justifies it
     message: str      # what the reviewer should know
     related: str = ""  # reuse: the existing function this points at ("path::symbol")
-    kind: str = ""     # reuse: "structural_duplicate" | "duplicate" | "reuse"
+    kind: str = ""     # reuse: "structural_duplicate" | "duplicate" | "reuse"; smell: catalogue key
+    severity: str = ""  # smell: "low" | "medium" | "high" (the model's estimate, may be empty)
 
 
 def added_lines(patch: str) -> list[str]:

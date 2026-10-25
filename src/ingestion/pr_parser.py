@@ -31,6 +31,7 @@ class PullRequest:
     deletions: int
     changed_files: int
     files: list[PRFile] = field(default_factory=list)
+    head_sha: str = ""    # commit of the PR branch; lets checks read whole files
 
 
 def parse_pr_url(url: str) -> tuple[str, int]:
@@ -102,7 +103,33 @@ def fetch_pr(repo: str, number: int, token: Optional[str] = None) -> PullRequest
         deletions=meta["deletions"],
         changed_files=meta["changed_files"],
         files=files,
+        head_sha=(meta.get("head") or {}).get("sha", ""),
     )
+
+
+def fetch_file_text(repo: str, path: str, ref: str,
+                    token: Optional[str] = None) -> Optional[str]:
+    """
+    Source text of `path` at commit `ref`, or None when it cannot be read
+    (missing, binary, rate-limited, offline). Callers must treat None as
+    "no extra context", never as an error.
+    """
+    if not ref:
+        return None
+    headers = {"Accept": "application/vnd.github.raw+json"}
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    try:
+        r = requests.get(f"https://api.github.com/repos/{repo}/contents/{path}",
+                         headers=headers, params={"ref": ref}, timeout=15)
+    except requests.RequestException:
+        return None
+    if r.status_code != 200:
+        return None
+    try:
+        return r.content.decode("utf-8")
+    except UnicodeDecodeError:
+        return None
 
 
 def fetch_pr_from_url(url: str, token: Optional[str] = None) -> PullRequest:
