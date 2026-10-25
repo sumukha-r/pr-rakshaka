@@ -47,36 +47,62 @@ flowchart TD
 
 ```
 pr-rakshaka/
+├── .env.example                  # Environment-variable template; no real secrets
+├── .gitignore
+├── README.md                     # Project overview and usage notes
+├── changelog.template
+├── main.py                       # Planned full-pipeline entry point; not yet wired
+├── requirements.txt
+│
+├── docs/
+│   └── architecture.md           # This document
+│
+├── data/
+│   └── chromadb/                 # Local generated index; must remain gitignored
+│
+├── scratch/
+│   └── retriever_queries/        # Manual retrieval queries for development
 │
 ├── src/
 │   ├── ingestion/
-│   │   └── pr_parser.py          # GitHub API client; returns PullRequest dataclass
+│   │   ├── __init__.py
+│   │   ├── pr_parser.py          # GitHub REST API; PullRequest and PRFile
+│   │   └── diff_defs.py          # Extract function/class definitions added by a diff
 │   │
 │   ├── rag/
-│   │   ├── indexer.py            # Embeds code chunks into ChromaDB at ingest time
-│   │   └── retriever.py          # Given a diff chunk, returns top-k similar code
+│   │   ├── __init__.py
+│   │   ├── indexer.py            # Build/update repository code embeddings in ChromaDB
+│   │   ├── retriever.py          # Retrieve similar indexed code chunks
+│   │   └── fingerprint.py        # Normalise code and detect structural copies
 │   │
 │   ├── checks/
-│   │   ├── missing_tests.py      # LLM prompt: did new logic get a test?
-│   │   ├── reuse_detector.py     # RAG + LLM prompt: does this already exist?
-│   │   └── smell_catalog.py      # Smell definitions + LLM prompt: any anti-patterns?
+│   │   ├── __init__.py
+│   │   ├── missing_tests.py      # Check 1: changed behaviour without relevant tests
+│   │   ├── reuse_detector.py     # Check 2: duplicate/reusable repository functionality
+│   │   ├── hot_path_smells.py    # Check 3: LLM review of performance risks
+│   │   └── smell_catalog.py      # Check 3 smell definitions and optional Radon signals
 │   │
 │   ├── llm/
-│   │   ├── client.py             # Groq API wrapper (Llama 3.1 free tier)
-│   │   ├── prompts.py            # Prompt templates for each check
-│   │   └── aggregator.py         # Evidence validation; drops ungrounded findings
+│   │   ├── __init__.py
+│   │   ├── client.py             # Local Ollama / Groq provider, JSON handling and stats
+│   │   ├── prompts.py            # Check-specific system prompts and prompt builders
+│   │   ├── compare.py            # Run one operation with providers and compare telemetry
+│   │   └── aggregator.py         # Finding structure and evidence-only filtering
 │   │
 │   └── report/
-│       └── generator.py          # Final synthesis prompt → Markdown review comment
+│       └── __init__.py           # Report package placeholder; generator is planned
 │
-├── app.py                        # Streamlit UI
-├── main.py                       # CLI entry point; orchestrates the full pipeline
-├── data/
-│   └── chromadb/                 # Persisted vector store (gitignored)
-└── docs/
-    └── architecture.md           # This file
+└── tests/
+    ├── __init__.py
+    ├── unit/
+    │   ├── test_smell_catalog.py
+    │   └── test_hot_path_smells.py
+    └── integration/
+        ├── compare_check1.py     # Known-answer Check 1 fixtures
+        ├── compare_check2.py     # Known-answer Check 2 fixtures
+        └── compare_check3.py     # Known-answer Check 3 fixtures (under development)
 ```
-
+The module map is present to prvide and idea and may not describe the current repo structure accurately.
 ---
 
 ## Key design decisions

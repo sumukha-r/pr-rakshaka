@@ -77,11 +77,11 @@ streamlit run app.py
 
 | Module | Status |
 |---|---|
-| PR ingestion (`pr_parser.py`) | ✅ done |
-| RAG indexer + retriever | 🔨 in progress |
-| Check 1 - Missing Tests | ⏳ pending |
-| Check 2 - Possible Reuse | ⏳ pending |
-| Check 3 - Hot-path Smells | ⏳ pending |
+| PR ingestion (`pr_parser.py`) | v1 |
+| RAG indexer + retriever | v1 |
+| Check 1 - Missing Tests | v1 |
+| Check 2 - Possible Reuse | v1 |
+| Check 3 - Hot-path Smells | v1 |
 | Evidence aggregator | ⏳ pending |
 | Report generator | ⏳ pending |
 | Streamlit UI | ⏳ pending |
