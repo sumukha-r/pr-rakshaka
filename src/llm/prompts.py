@@ -2,7 +2,7 @@
 prompts.py — prompt text and prompt-building helpers shared by the checks.
 
 Kept separate from the checks so prompts can be tuned without touching logic,
-and so the token-budget helpers (trim_patch) live in one place.
+and so the token-budget helpers (trim_patch) live in one place. 
 """
 
 import re
