@@ -3,6 +3,7 @@ pr_parser.py — fetch a GitHub PR and return a structured dict.
 No auth token needed for public repos (60 req/hr unauthenticated).
 """
 
+import os
 import re
 import requests
 from dataclasses import dataclass, field
@@ -130,6 +131,11 @@ def fetch_file_text(repo: str, path: str, ref: str,
         return r.content.decode("utf-8")
     except UnicodeDecodeError:
         return None
+
+
+def fetch_source_at(repo: str, path: str, ref: str) -> Optional[str]:
+    """fetch_file_text with the token from $GITHUB_TOKEN: the default whole-file reader."""
+    return fetch_file_text(repo, path, ref, token=os.getenv("GITHUB_TOKEN"))
 
 
 def fetch_pr_from_url(url: str, token: Optional[str] = None) -> PullRequest:

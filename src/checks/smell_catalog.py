@@ -36,10 +36,13 @@ SMELLS: tuple[Smell, ...] = (
           "Quote the added invariant computation."),
 )
 
+SMELL_KEYS: frozenset[str] = frozenset(s.key for s in SMELLS)
+COMPLEXITY_THRESHOLD = 8
 
 def catalogue_text() -> str:
+    """One line per smell. The key is what the model puts in a finding's "smell" field."""
     return "\n".join(
-        f"- {s.title}: {s.description} Evidence: {s.evidence_hint}"
+        f'- "{s.key}" ({s.title}): {s.description} Evidence: {s.evidence_hint}'
         for s in SMELLS
     )
 
@@ -63,9 +66,51 @@ def complexity_signals(source: str, *, filename: str = "<unknown>") -> list[str]
         complexity = getattr(block, "complexity", None)
         name = getattr(block, "name", "<function>")
         lineno = getattr(block, "lineno", None)
-        if isinstance(complexity, int) and complexity >= 8:
+        if isinstance(complexity, int) and complexity >= COMPLEXITY_THRESHOLD:
             signals.append(
                 f"{filename}:{lineno or '?'} {name}: Radon cyclomatic complexity "
                 f"{complexity} (review signal only; not automatically a finding)"
             )
+    return signals
+
+
+def touched_complexity_signals(source: str, added_lines: set[int], *,
+                               filename: str = "<unknown>") -> list[str]:
+    """
+    Radon signals for functions of a WHOLE file that the diff touches, whether
+    the PR added them or only edited inside them. `added_lines` are line numbers
+    in this version of the file (see diff_defs.added_line_numbers).
+
+    This is what lets an edited function get a complexity hint: a diff alone
+    only contains fragments, but the whole file parses.
+    """
+    try:
+        from radon.complexity import cc_visit
+        blocks = cc_visit(source)
+    except Exception:  # ImportError, SyntaxError, anything: a hint must never break a review
+        return []
+
+    functions = {}      # keyed by line: radon reports a method on its own and inside its class
+    for block in blocks:
+        methods = getattr(block, "methods", None)   # a Class block: score its methods
+        for fn in (methods if methods is not None else [block]):
+            functions.setdefault(getattr(fn, "lineno", None), fn)
+
+    signals = []
+    for fn in functions.values():
+        complexity = getattr(fn, "complexity", None)
+        lineno, endline = getattr(fn, "lineno", None), getattr(fn, "endline", None)
+        if not (isinstance(complexity, int) and isinstance(lineno, int)
+                and isinstance(endline, int)):
+            continue
+        if complexity < COMPLEXITY_THRESHOLD:
+            continue
+        if not any(lineno <= n <= endline for n in added_lines):
+            continue
+        name = getattr(fn, "fullname", None) or getattr(fn, "name", "<function>")
+        signals.append(
+            f"{filename}:{lineno} {name}: Radon cyclomatic complexity {complexity} "
+            "(this PR changes lines inside it; review signal only, "
+            "not automatically a finding)"
+        )
     return signals

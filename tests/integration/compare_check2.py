@@ -14,6 +14,11 @@ GitHub and no token. Not the evaluation dataset; that comes from real PRs.
 Run from the repo root. Each case has an expected answer:
     flag  = at least one finding (and, where stated, pointing at the right candidate)
     clean = no findings
+
+Most cases add a whole new function. The "block_*" cases EDIT an existing function
+(old_file -> new_file): the PR adds lines in the middle of it, which is what the
+whole-file read at the PR head makes reviewable. The fixture hands the new file to
+the check the way the GitHub fetch would.
 """
 
 import argparse
@@ -169,6 +174,44 @@ _CHECKSUM = '''def compute_checksum(path):
     return digest.hexdigest()
 '''
 
+_EXPORT_OLD = '''def export_rows(rows, out):
+    header = "id,name"
+    out.write(header)
+    for row in rows:
+        out.write(row.line())
+    return out
+'''
+_EXPORT_INLINE_CHUNKING = '''def export_rows(rows, out):
+    header = "id,name"
+    out.write(header)
+    chunks = []
+    for i in range(0, len(rows), 100):
+        chunks.append(rows[i:i + 100])
+    for chunk in chunks:
+        out.write("".join(r.line() for r in chunk))
+    return out
+'''
+_EXPORT_USES_BATCH = '''def export_rows(rows, out):
+    header = "id,name"
+    out.write(header)
+    for chunk in batch(rows, 100):
+        out.write("".join(r.line() for r in chunk))
+        out.flush()
+        log.info("wrote %d rows", len(chunk))
+    return out
+'''
+_EXPORT_COUNTS_BAD_ROWS = '''def export_rows(rows, out):
+    header = "id,name"
+    out.write(header)
+    bad = 0
+    for i in range(0, len(rows)):
+        if not rows[i].name:
+            bad += 1
+    for row in rows:
+        out.write(row.line())
+    return out, bad
+'''
+
 CASES = [
     {
         "name": "exact_copy_renamed", "level": "easy", "expect": "flag",
@@ -226,22 +269,53 @@ CASES = [
         "title": "Add compute_checksum()", "file": "src/files.py", "new": _CHECKSUM,
         "candidates": [_chunk("src/io_utils.py", "def read_text", _READ_TEXT, 0.76)],
     },
+    {
+        "name": "block_reimplements_helper", "level": "medium", "expect": "flag",
+        "expect_related": "batch",
+        "why": "the lines added inside export_rows() chunk a list by hand; batch() already does that",
+        "title": "Write rows in chunks", "file": "src/export.py",
+        "old_file": _EXPORT_OLD, "new_file": _EXPORT_INLINE_CHUNKING,
+        "candidates": [_chunk("src/iterutils.py", "def batch", _BATCH, 0.84)],
+    },
+    {
+        "name": "block_calls_existing_helper", "level": "medium", "expect": "clean",
+        "why": "the added lines call batch(); they reuse it instead of copying it",
+        "title": "Write rows in chunks", "file": "src/export.py",
+        "old_file": _EXPORT_OLD, "new_file": _EXPORT_USES_BATCH,
+        "candidates": [_chunk("src/iterutils.py", "def batch", _BATCH, 0.84)],
+    },
+    {
+        "name": "block_unrelated_logic", "level": "hard", "expect": "clean",
+        "why": "the added loop looks like batch() but counts bad rows; it does a different job",
+        "title": "Count malformed rows", "file": "src/export.py",
+        "old_file": _EXPORT_OLD, "new_file": _EXPORT_COUNTS_BAD_ROWS,
+        "candidates": [_chunk("src/iterutils.py", "def batch", _BATCH, 0.79)],
+    },
 ]
 
 
 def _build_pr(case: dict) -> PullRequest:
-    patch = _diff("", case["new"])
-    f = PRFile(filename=case["file"], status="added",
-               additions=len(case["new"].splitlines()), deletions=0, patch=patch)
+    if "old_file" in case:                      # an edit: the diff has context and removed lines
+        patch = _diff(case["old_file"], case["new_file"])
+        rows = patch.splitlines()
+        f = PRFile(filename=case["file"], status="modified",
+                   additions=sum(r.startswith("+") for r in rows),
+                   deletions=sum(r.startswith("-") for r in rows), patch=patch)
+        head_sha = "fixture"                    # lets the check ask for the whole file
+    else:
+        patch = _diff("", case["new"])
+        f = PRFile(filename=case["file"], status="added",
+                   additions=len(case["new"].splitlines()), deletions=0, patch=patch)
+        head_sha = ""
     return PullRequest(repo="demo/demo", number=1, title=case["title"], author="demo",
                        state="open", merged=False, body="", additions=f.additions,
-                       deletions=0, changed_files=1, files=[f])
+                       deletions=f.deletions, changed_files=1, files=[f], head_sha=head_sha)
 
 
 def _make_runner(cases: list[dict]):
     def run_all(report: dict) -> list[dict]:
         rows, correct = [], 0
-        totals = {"exact": 0, "raw_findings": 0, "dropped": 0}
+        totals = {"exact": 0, "blocks_found": 0, "raw_findings": 0, "dropped": 0}
         for case in cases:
             row = {"case": case, "findings": [], "error": "", "seconds": 0.0}
             rep: dict = {}
@@ -249,7 +323,8 @@ def _make_runner(cases: list[dict]):
             try:
                 row["findings"] = check_reuse(
                     _build_pr(case), report=rep,
-                    retrieve=lambda repo, source, filename, top_k, c=case: list(c["candidates"]))
+                    retrieve=lambda repo, source, filename, top_k, c=case: list(c["candidates"]),
+                    fetch_source=lambda repo, path, ref, c=case: c.get("new_file"))
             except LLMError as exc:
                 row["error"] = str(exc)
             row["seconds"] = time.monotonic() - start

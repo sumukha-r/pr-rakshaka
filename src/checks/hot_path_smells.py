@@ -17,7 +17,7 @@ from src.checks.smell_catalog import (
     touched_complexity_signals,
 )
 from src.ingestion.diff_defs import added_definitions, added_line_numbers
-from src.ingestion.pr_parser import PRFile, PullRequest, fetch_file_text, fetch_pr_from_url
+from src.ingestion.pr_parser import PRFile, PullRequest, fetch_pr_from_url, fetch_source_at
 from src.llm.aggregator import Finding, keep_evidenced
 from src.llm.client import PROVIDERS, chat_json, use_provider
 from src.llm.prompts import HOT_PATH_SYSTEM, build_hot_path_prompt, is_test_file
@@ -31,10 +31,7 @@ SEVERITIES = ("low", "medium", "high")
 # fetch_source(repo, path, ref) -> whole file text at the PR head, or None
 SourceFetcher = Callable[[str, str, str], Optional[str]]
 
-
-def _default_fetch(repo: str, path: str, ref: str) -> Optional[str]:
-    return fetch_file_text(repo, path, ref, token=os.getenv("GITHUB_TOKEN"))
-
+_default_fetch = fetch_source_at
 
 def _has_added_code(patch: str) -> bool:
     return any(line.strip() and not line.lstrip().startswith("#")

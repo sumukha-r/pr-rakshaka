@@ -29,8 +29,8 @@ import logging
 import os
 from typing import Callable, Optional
 
-from src.ingestion.diff_defs import AddedDef, added_definitions
-from src.ingestion.pr_parser import PullRequest
+from src.ingestion.diff_defs import AddedDef, added_definitions, edited_blocks
+from src.ingestion.pr_parser import PullRequest, fetch_source_at
 from src.llm.aggregator import Finding, keep_evidenced
 from src.llm.client import chat_json
 from src.llm.prompts import REUSE_SYSTEM, build_reuse_prompt, is_test_file
@@ -41,12 +41,16 @@ log = logging.getLogger(__name__)
 CHECK_NAME = "reuse"
 TOP_K = 3                    # candidates shown to the LLM per new definition
 MIN_SIMILARITY = 0.75        # below this a candidate is not worth an LLM call
+BLOCK_MIN_SIMILARITY = 0.75  # same floor for blocks added inside existing functions; tune separately
 DUPLICATE_SIMILARITY = 0.92  # at or above: reported as "duplicate", else "reuse"
 MAX_DEFS = 5                 # LLM calls per PR; protects the per-minute token limit
 
 # retrieve(repo, source, filename, top_k) -> list of chunks with .filepath, .symbol,
 # .source, .start_line, .end_line, .similarity (src.rag.retriever.RetrievedChunk)
 Retriever = Callable[[str, str, str, int], list]
+
+# fetch_source(repo, path, ref) -> whole file text at the PR head, or None
+SourceFetcher = Callable[[str, str, str], Optional[str]]
 
 
 def _default_retrieve(repo: str, source: str, filename: str, top_k: int) -> list:
@@ -86,14 +90,27 @@ def _as_int(value) -> Optional[int]:
     return None
 
 
-def _collect_defs(pr: PullRequest) -> list[AddedDef]:
+def _collect_defs(pr: PullRequest, fetch_source: Optional[SourceFetcher] = None
+                  ) -> tuple[list[AddedDef], int]:
+    """
+    Everything the PR adds that Check 2 can look at: whole new functions and
+    classes, plus (when the whole file can be read at the PR head) blocks added
+    inside existing functions. Returns (definitions, files_fetched).
+    """
     defs: list[AddedDef] = []
+    fetched = 0
     for f in pr.files:
-        if (f.filename.endswith(".py") and f.patch
+        if not (f.filename.endswith(".py") and f.patch
                 and f.status not in ("removed", "deleted")
                 and not is_test_file(f.filename)):
-            defs.extend(added_definitions(f.filename, f.patch))
-    return defs
+            continue
+        defs.extend(added_definitions(f.filename, f.patch))
+        if fetch_source and pr.head_sha and f.status != "added":
+            full = fetch_source(pr.repo, f.filename, pr.head_sha)
+            if full is not None:
+                fetched += 1
+                defs.extend(edited_blocks(f.filename, f.patch, full))
+    return defs, fetched
 
 
 def _review_def(pr: PullRequest, d: AddedDef, cands: list
@@ -141,16 +158,24 @@ def _review_def(pr: PullRequest, d: AddedDef, cands: list
 # ---------------------------------------------------------------------------
 
 def check_reuse(pr: PullRequest, *, retrieve: Optional[Retriever] = None,
-                max_defs: int = MAX_DEFS, report: Optional[dict] = None) -> list[Finding]:
+                max_defs: int = MAX_DEFS, report: Optional[dict] = None,
+                fetch_source: Optional[SourceFetcher] = None) -> list[Finding]:
     """
     Run Check 2 over a PR. Returns only evidence-backed findings.
-    If `report` is given it is filled with counts (defs_found, with_candidates,
-    exact, llm_calls, raw_findings, dropped) so backends can be compared.
+    If `report` is given it is filled with counts (defs_found, blocks_found,
+    with_candidates, exact, llm_calls, raw_findings, dropped) so backends can
+    be compared.
+
+    `fetch_source` reads a whole file at the PR head. It is what lets the check
+    also review blocks added inside existing functions; the default calls GitHub
+    and is skipped when the PR has no head commit. A failed fetch only means
+    those blocks are not reviewed.
     """
     retrieve = retrieve or _default_retrieve
+    fetch_source = fetch_source or fetch_source_at
     patches = {f.filename: f.patch for f in pr.files if f.patch}
 
-    defs = _collect_defs(pr)
+    defs, fetched = _collect_defs(pr, fetch_source)
     findings: list[Finding] = []
     to_review: list[tuple[float, AddedDef, list]] = []
     exact = 0
@@ -177,7 +202,8 @@ def check_reuse(pr: PullRequest, *, retrieve: Optional[Retriever] = None,
 
         hits = [c for c in retrieve(pr.repo, d.source, d.filename, TOP_K + 1)
                 if not _is_self(c, d)]
-        cands = sorted((c for c in hits if c.similarity >= MIN_SIMILARITY),
+        floor = BLOCK_MIN_SIMILARITY if d.kind == "block" else MIN_SIMILARITY
+        cands = sorted((c for c in hits if c.similarity >= floor),
                        key=lambda c: -c.similarity)[:TOP_K]
         if not cands:
             continue
@@ -213,7 +239,8 @@ def check_reuse(pr: PullRequest, *, retrieve: Optional[Retriever] = None,
     dropped = dropped + invalid
 
     if report is not None:
-        report.update(defs_found=len(defs), with_candidates=exact + len(to_review),
+        report.update(defs_found=len(defs), blocks_found=sum(d.kind == "block" for d in defs),
+                      files_fetched=fetched, with_candidates=exact + len(to_review),
                       exact=exact, within_pr=within_pr, llm_calls=len(reviewed),
                       raw_findings=len(llm_findings) + len(invalid), dropped=len(dropped))
         report["_analyses"] = analyses
