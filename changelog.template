@@ -1,3 +1,8 @@
+# v0.6.1
+
+Implemented hot path smells detection (check 3)
+25-10-2026 12:00 by sumukha0000@gmail.com
+
 # v0.5.1
 
 Added resue detector and tests for reuse check (check 2)

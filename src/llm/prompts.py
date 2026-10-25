@@ -285,3 +285,55 @@ def build_reuse_prompt(
         '"message": "<what to reuse and why>"}]}\n'
         'Write "analysis" first. Use "findings": [] if no candidate does the same job.'
     )
+
+
+# ---------------------------------------------------------------------------
+# Check 3 — hot-path performance smells
+# ---------------------------------------------------------------------------
+
+HOT_PATH_SYSTEM = """You are a cautious senior Python performance reviewer. Review exactly
+one changed source file for concrete, meaningful hot-path performance risks.
+
+The catalogue is a checklist, not a set of rules that must produce findings.
+Only report behaviour introduced or materially changed by added lines. Consider
+the removed lines too: equivalent refactors are not new smells.
+
+Prioritise repeated expensive work in loops, avoidable repeated scans / quadratic
+work, N+1 database or network I/O, blocking calls inside async functions, large
+unnecessary materialisations/copies, and invariant work repeated inside loops.
+A complex function is not automatically slow. Do not report style, generic
+complexity, speculative micro-optimisations, ordinary loops, or code whose
+cost depends on unknown workloads without a clear mechanism.
+
+Static-analysis signals are hints only. The LLM makes the judgement.
+If the code is likely small, cold-path, or the proposed optimisation would change
+semantics or readability without a meaningful gain, stay silent.
+
+Every finding MUST contain "evidence": ONE exact line copied from the added
+source lines in the diff, without the leading '+'. Never paraphrase or invent it.
+If no added line clearly supports the specific performance risk, return no finding.
+Start JSON with "analysis" (2-4 sentences explaining the changed behaviour and
+why it is or is not a meaningful hot-path risk), then "findings".
+
+Return JSON:
+{"analysis": "...", "findings": [{"evidence": "...", "message": "...", "severity": "low|medium|high"}]}
+Messages should be 1-2 sentences, identify the mechanism and why it may matter.
+Use an empty findings list when uncertain. No markdown fences."""
+
+
+def build_hot_path_prompt(pr_title: str, filename: str, patch: str,
+                          signals: list[str] | None = None,
+                          *, catalogue: str = "", max_patch_chars: int = 7000) -> str:
+    signal_text = "\n".join(f"- {s}" for s in (signals or [])) or "(none)"
+    return (
+        f"Pull request title: {pr_title}\n\n"
+        f"## Changed source file: {filename}\n"
+        f"```diff\n{trim_patch(patch, max_patch_chars)}\n```\n\n"
+        f"## Static-analysis pre-signals (context only)\n{signal_text}\n\n"
+        "Review the diff using this smell catalogue:\n"
+        + (catalogue + "\n\n" if catalogue else
+           "- Repeated expensive work, avoidable scans, N+1 I/O, blocking calls "
+           "inside async functions, unnecessary materialisation, invariant work.\n\n")
+        + "Return JSON with analysis first and findings second. Each finding must "
+        "quote one exact added line from this file's diff."
+    )
