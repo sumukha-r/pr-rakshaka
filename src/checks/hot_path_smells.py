@@ -69,9 +69,11 @@ def check_hot_path_smells(
     analyses: list[tuple[str, str]] = []
     calls = 0
     radon_signal_count = 0
+    radon_details: list[tuple[str, str]] = []
     for f in files:
         signals = _signals(f)
         radon_signal_count += len(signals)
+        radon_details.extend((f.filename, signal) for signal in signals)
         prompt = build_hot_path_prompt(pr.title, f.filename, f.patch or "", signals, catalogue=catalogue_text())
         try:
             reply = chat_json(HOT_PATH_SYSTEM, prompt)
@@ -100,6 +102,7 @@ def check_hot_path_smells(
                       kept_findings=len(kept), radon_signals=radon_signal_count)
         report["_analyses"] = analyses
         report["_dropped"] = dropped
+        report["_radon_details"] = radon_details
     for item in dropped:
         log.debug("smell: dropped %s | evidence=%r", item.filename, item.evidence)
     return kept
@@ -108,7 +111,7 @@ def check_hot_path_smells(
 def _format(findings: list[Finding]) -> str:
     if not findings:
         return "No hot-path smell findings."
-    return "\\n".join(
+    return "\n".join(
         f"{f.filename}\\n  evidence: {f.evidence.strip()}\\n  {f.message}\\n"
         for f in findings
     )

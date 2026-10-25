@@ -305,6 +305,14 @@ A complex function is not automatically slow. Do not report style, generic
 complexity, speculative micro-optimisations, ordinary loops, or code whose
 cost depends on unknown workloads without a clear mechanism.
 
+Trace the actual control flow before claiming work is repeated. An operation
+executed once before a loop or comprehension is not repeated by that loop. If a
+compiled regex, parsed value, or other result is assigned before iteration and
+that stored result is reused inside the iteration, do not claim the operation is
+repeated. Do not infer a loop or repeated operation from a function name, a
+variable name, or a similar pattern elsewhere; the shown code must support it.
+When the diff does not establish repetition, return no finding.
+
 Static-analysis signals are hints only. The LLM makes the judgement.
 If the code is likely small, cold-path, or the proposed optimisation would change
 semantics or readability without a meaningful gain, stay silent.

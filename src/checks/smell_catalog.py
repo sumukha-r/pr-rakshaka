@@ -38,7 +38,7 @@ SMELLS: tuple[Smell, ...] = (
 
 
 def catalogue_text() -> str:
-    return "\\n".join(
+    return "\n".join(
         f"- {s.title}: {s.description} Evidence: {s.evidence_hint}"
         for s in SMELLS
     )
@@ -51,7 +51,6 @@ def complexity_signals(source: str, *, filename: str = "<unknown>") -> list[str]
     A complexity score only prioritises review and must not itself trigger a finding.
     """
     try:
-        import ast
         from radon.complexity import cc_visit
         blocks = cc_visit(source)
     except (ImportError, SyntaxError, ValueError):

@@ -1,3 +1,8 @@
+# v0.6.3
+
+Updated llm prompt and added tests for hot path smells (check 3)
+25-10-2026 13:20 by sumukha0000@gmail.com
+
 # v0.6.2
 
 Updated readme and requirements
