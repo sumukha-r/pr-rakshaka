@@ -157,3 +157,20 @@ def test_cli_writes_markdown_and_json(monkeypatch, tmp_path, capsys):
     assert main.main(["https://github.com/o/r/pull/1", "--json"]) == 0
     data = json.loads(capsys.readouterr().out)
     assert data["checks"][2]["findings"][0]["evidence"] == "db.get(i)"
+
+
+def test_progress_callback_hears_about_every_step_that_runs():
+    heard = []
+    run(progress=heard.append, indexed=lambda repo: False)
+    assert heard[0] == "Fetched #1: 1 file(s) changed"             # a PR object needs no fetch
+    assert "Running: Missing tests..." in heard and "Running: Hot-path smells..." in heard
+    assert not any("Possible reuse" in h for h in heard)           # skipped, so nothing to announce
+
+
+def test_progress_announces_the_fetch_when_given_a_url(monkeypatch):
+    monkeypatch.setattr(main, "fetch_pr_from_url", lambda url, token=None: PR)
+    heard = []
+    main.run_review("https://github.com/o/r/pull/1", runners=runners(),
+                    indexed=lambda r: True, progress=heard.append)
+    assert heard[0] == "Fetching the pull request from GitHub..."
+    

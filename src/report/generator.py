@@ -3,8 +3,8 @@ generator.py — turn verified findings into a Markdown review comment.
 
 Deterministic on purpose: no LLM pass. Every sentence in the report is either a
 finding that already passed the evidence filter, or a fact about the run. A
-model-written summary could include claims the evidence filter never verified,
-which would break this project's evidence-only rule.
+summarising model could add claims never checked, which would break the
+evidence-only rule this project is built on.
 
     from src.report.generator import CheckResult, Review, render_markdown
 """
@@ -89,26 +89,36 @@ def _heading(r: CheckResult) -> str:
     return f"### {r.icon} {r.title} ({len(r.findings)})"
 
 
-def _ordered(r: CheckResult) -> list[Finding]:
+_REUSE_LABELS = {"structural_duplicate": "same logic, names changed",
+                 "duplicate": "likely duplicate", "reuse": "possible reuse"}
+
+
+def ordered_findings(r: CheckResult) -> list[Finding]:
+    """The order findings are shown in: smells by severity, everything by file."""
     if r.name == "smell":
         return sorted(r.findings, key=lambda f: (_SEVERITY_ORDER.get(f.severity, 3), f.filename))
     return sorted(r.findings, key=lambda f: f.filename)
 
 
+def finding_tags(check_name: str, f: Finding) -> list[str]:
+    """Short labels for a finding, shared by the Markdown report and the web UI."""
+    if check_name == "reuse":
+        label = _REUSE_LABELS.get(f.kind, f.kind)
+        return [label] if label else []
+    if check_name == "smell":
+        return [t for t in (_SMELL_TITLES.get(f.kind, ""), f.severity) if t]
+    return []
+
+
+_ordered = ordered_findings      # old name, kept so nothing that imported it breaks
+
+
 def _render_finding(r: CheckResult, f: Finding) -> str:
-    message = _one_line(f.message)
-    if r.name == "reuse":
-        label = {"structural_duplicate": "same logic, names changed",
-                 "duplicate": "likely duplicate", "reuse": "possible reuse"}.get(f.kind, f.kind)
-        head = f"- **`{f.filename}`** · {label}\n  {message}"
-        if f.related:
-            head += f"  \n  Existing: `{_one_line(f.related)}`"   # two spaces = line break
-    elif r.name == "smell":
-        smell = _SMELL_TITLES.get(f.kind, "")
-        tags = [t for t in (smell, f.severity) if t]
-        head = f"- **`{f.filename}`**" + (f" · {' · '.join(tags)}" if tags else "") + f"\n  {message}"
-    else:
-        head = f"- **`{f.filename}`**\n  {message}"
+    tags = finding_tags(r.name, f)
+    head = f"- **`{f.filename}`**" + (f" · {' · '.join(tags)}" if tags else "")
+    head += f"\n  {_one_line(f.message)}"
+    if r.name == "reuse" and f.related:
+        head += f"  \n  Existing: `{_one_line(f.related)}`"   # two spaces = line break
     return head + "\n" + _indent(_fence(f.evidence))
 
 

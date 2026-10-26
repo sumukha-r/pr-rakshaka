@@ -17,7 +17,7 @@ Did this change introduce logic that can fail silently under edge inputs? Is the
 Does this new code reinvent something that already exists in the codebase? Using vector search over the indexed repo, the LLM is shown the most similar existing functions. If the PR is duplicating logic, it names the original. If the similarity is high enough, it calls it a duplication outright.
 
 **Hot-path Smells**
-Does the diff introduce known anti-patterns - N+1 queries, bare `except:` clauses, mutable default arguments, blocking calls in async functions? The LLM quotes the exact lines, not a vague warning.
+Does the added code introduce a performance risk on a hot path: an N+1 query or request per item, expensive work repeated in a loop, a quadratic scan, a blocking call inside `async def`, an avoidable full copy of a large iterable? The LLM reads unchanged loop and function lines as context, but only quotes lines the PR adds, and says what may cost rather than claiming it is slow.
 
 If there is no concrete evidence for a finding, nothing is said. The reviewer stays silent rather than guessing.
 
@@ -47,7 +47,7 @@ Full design: [`docs/architecture.md`](docs/architecture.md)
 ## Setup
 
 ```bash
-git clone https://github.com/your-username/pr-rakshaka
+git clone https://github.com/sumukha-r/pr-rakshaka
 cd pr-rakshaka
 pip install -r requirements.txt
 
@@ -57,8 +57,17 @@ export GROQ_API_KEY=your_key_here
 # optional: GitHub token for private repos or higher rate limits
 export GITHUB_TOKEN=your_token_here
 
-streamlit run app.py
+# the reuse check needs the repo indexed once (slow on large repos)
+python src/rag/indexer.py owner/repo
+
+# review a PR: prints a Markdown review comment
+python main.py https://github.com/owner/repo/pull/123
+python main.py <PR URL> --provider groq --out review.md
+python main.py <PR URL> --checks tests,smells      # skip the reuse check
+python main.py <PR URL> --json                     # machine-readable
 ```
+
+Run the offline unit tests (no keys, no GPU, no network) with `python -m pytest`.
 
 ---
 
@@ -82,8 +91,9 @@ streamlit run app.py
 | Check 1 - Missing Tests | v1 |
 | Check 2 - Possible Reuse | v1 |
 | Check 3 - Hot-path Smells | v1 |
-| Evidence aggregator | ⏳ pending |
-| Report generator | ⏳ pending |
-| Streamlit UI | ⏳ pending |
+| Evidence aggregator (`src/llm/aggregator.py`) | v1 |
+| Report generator (`src/report/generator.py`, deterministic Markdown) | v1 |
+| Pipeline entry point (`main.py`) | v1 |
+| Streamlit UI | v1 |
 
 ---

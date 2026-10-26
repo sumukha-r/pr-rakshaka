@@ -110,14 +110,23 @@ def run_review(pr_or_url: Union[str, PullRequest], *, checks: Optional[list[str]
                provider: Optional[str] = None, token: Optional[str] = None,
                index_if_missing: bool = False,
                runners: Optional[dict[str, Runner]] = None,
-               indexed: Optional[Callable[[str], Optional[bool]]] = None) -> Review:
+               indexed: Optional[Callable[[str], Optional[bool]]] = None,
+               progress: Optional[Callable[[str], None]] = None) -> Review:
     """
     Fetch (if given a URL) and review a PR. Never raises because of one check:
     a check that fails is reported as failed and the others still run.
     `runners` and `indexed` exist so tests can run the pipeline without a model.
+    `progress`, if given, is called with a short status line before each step
+    (the web UI shows these while it waits).
     """
+    say = progress or (lambda message: None)
     token = token or os.getenv("GITHUB_TOKEN")
-    pr = pr_or_url if isinstance(pr_or_url, PullRequest) else fetch_pr_from_url(pr_or_url, token=token)
+    if isinstance(pr_or_url, PullRequest):
+        pr = pr_or_url
+    else:
+        say("Fetching the pull request from GitHub...")
+        pr = fetch_pr_from_url(pr_or_url, token=token)
+    say(f"Fetched #{pr.number}: {len(pr.files)} file(s) changed")
     checks = checks or list(CHECK_INFO)
     runners = runners or default_runners()
     is_indexed = indexed or repo_is_indexed
@@ -151,6 +160,7 @@ def run_review(pr_or_url: Union[str, PullRequest], *, checks: Optional[list[str]
                 res.note = f"{why}. Run: python src/rag/indexer.py {pr.repo}   (or pass --index)"
                 continue
 
+        say(f"Running: {title}...")
         rep: dict = {}
         start = time.monotonic()
         try:
