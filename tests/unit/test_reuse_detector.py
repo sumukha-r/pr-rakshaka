@@ -169,3 +169,91 @@ def test_broken_file_at_head_does_not_crash(llm):
     llm(lambda u: pytest.fail("nothing to review"))
     assert rd.check_reuse(edit_pr(), retrieve=lambda *a: [],
                           fetch_source=lambda *a: "def broken(:\n") == []
+
+
+# --- retry when the model quotes the candidate instead of the new code -----------
+
+def test_a_quote_from_the_candidate_gets_one_retry_that_can_rescue_it(llm):
+    replies = iter([finding_reply(evidence="yield seq[start:start + size]"),     # candidate's line
+                    finding_reply(evidence="chunks.append(rows[i:i + 100])")])   # new code's line
+    sent = llm(lambda user: next(replies))
+    report = {}
+    out = rd.check_reuse(edit_pr(), retrieve=lambda *a: [Chunk("src/iterutils.py", "def batch", BATCH, 0.84)],
+                         fetch_source=lambda *a: NEW, report=report)
+    assert [f.evidence for f in out] == ["chunks.append(rows[i:i + 100])"]
+    assert len(sent) == 2 and "yield seq[start:start + size]" in sent[1][1]   # the retry names the bad quote
+    assert "never from an existing candidate" in sent[1][1]
+    assert report["retries"] == 1 and report["llm_calls"] == 2 and report["dropped"] == 0
+
+
+def test_a_second_bad_quote_is_dropped_and_there_is_no_third_call(llm):
+    sent = llm(finding_reply(evidence="yield seq[start:start + size]"))
+    report = {}
+    out = rd.check_reuse(edit_pr(), retrieve=lambda *a: [Chunk("src/iterutils.py", "def batch", BATCH, 0.84)],
+                         fetch_source=lambda *a: NEW, report=report)
+    assert out == [] and len(sent) == 2 and report["dropped"] == 1
+
+
+def test_a_good_first_answer_is_not_retried(llm):
+    sent = llm(finding_reply())
+    report = {}
+    rd.check_reuse(edit_pr(), retrieve=lambda *a: [Chunk("src/iterutils.py", "def batch", BATCH, 0.84)],
+                   fetch_source=lambda *a: NEW, report=report)
+    assert len(sent) == 1 and report["retries"] == 0
+
+
+def test_a_retry_that_finds_nothing_is_a_clean_result(llm):
+    replies = iter([finding_reply(evidence="yield seq[start:start + size]"),
+                    {"analysis": "no overlap after all", "findings": []}])
+    llm(lambda user: next(replies))
+    assert rd.check_reuse(edit_pr(), retrieve=lambda *a: [Chunk("a.py", "def batch", BATCH, 0.84)],
+                          fetch_source=lambda *a: NEW) == []
+
+
+# --- the new code already calls the candidate --------------------------------
+
+CALLS_BATCH = NEW.replace("    chunks = []\n    for i in range(0, len(rows), 100):\n        chunks.append(rows[i:i + 100])\n"
+                          "    for chunk in chunks:\n        out.write(\"\".join(r.line() for r in chunk))\n",
+                          "    for chunk in batch(rows, 100):\n        out.write(\"\".join(r.line() for r in chunk))\n"
+                          "        out.flush()\n        log.info('wrote %d', len(chunk))\n        count += 1\n")
+
+
+def test_a_finding_that_tells_you_to_use_what_the_new_code_already_calls_is_dropped(llm):
+    llm(finding_reply(evidence="for chunk in batch(rows, 100):"))
+    pr = make_pr(make_file("src/export.py", make_diff(OLD, CALLS_BATCH)))
+    pr.head_sha = "abc"
+    report = {}
+    out = rd.check_reuse(pr, retrieve=lambda *a: [Chunk("src/iterutils.py", "def batch", BATCH, 0.84)],
+                         fetch_source=lambda *a: CALLS_BATCH, report=report)
+    assert out == [] and report["dropped"] == 1 and report["retries"] == 0
+
+
+def _d(source, name="export_rows"):
+    from src.ingestion.diff_defs import AddedDef
+    return AddedDef("src/x.py", name, "block", source, 1, 5, source.splitlines()[0])
+
+
+def _c(symbol="def batch", path="src/iterutils.py"):
+    return Chunk(path, symbol, BATCH, 0.9)
+
+
+def test_already_calls_matches_bare_and_module_qualified_calls():
+    assert rd._already_calls(_d("for c in batch(rows, 5):\n    use(c)"), _c())
+    assert rd._already_calls(_d("for c in iterutils.batch(rows, 5):\n    use(c)"), _c())
+    assert rd._already_calls(_d("x = batch (rows, 5)"), _c())
+
+
+def test_already_calls_does_not_match_the_definition_line_or_unrelated_attributes():
+    assert not rd._already_calls(_d("def batch(seq, size):\n    pass"), _c())
+    assert not rd._already_calls(_d("async def batch(seq):\n    pass"), _c())
+    assert not rd._already_calls(_d("cache.batch(rows)\nother.batch(rows)"), _c())   # someone else's method
+    assert not rd._already_calls(_d("x = rebatch(rows)\ny = batched(rows)"), _c())   # different names
+
+
+def test_a_new_function_with_the_candidates_own_name_is_still_a_duplicate():
+    assert not rd._already_calls(_d("def batch(seq, size):\n    return batch(seq[1:], size)", name="batch"), _c())
+
+
+def test_very_short_names_are_never_treated_as_already_called():
+    assert not rd._already_calls(_d("x = fn(rows)"), _c("def fn"))
+    

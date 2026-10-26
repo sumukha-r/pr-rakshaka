@@ -133,7 +133,7 @@ You are a careful code reviewer checking exactly ONE thing: whether code that a 
 pull request ADDS re-implements something that already exists in the codebase, \
 so the author should reuse the existing code instead.
 
-You are shown new code from the pull request, and a few \
+You are shown new code from the pull request, and up to three \
 existing code chunks from the same repository, numbered as candidates, that a \
 search found similar. The search is only a hint: most candidates are NOT real \
 duplicates.
@@ -160,7 +160,7 @@ candidate. If your analysis says no candidate does the same job, "findings" \
 must be empty.
 
 Each finding needs the candidate number, an "evidence" line copied exactly from \
-the NEW code (one line, as shown), and a "message" of one or two sentences \
+the NEW code section (one line, as shown; never a line from a candidate), and a "message" of one or two sentences \
 naming what to reuse and why it does the same job. Never invent code.\
 """
 
@@ -207,7 +207,8 @@ def build_reuse_prompt(
         '{"analysis": "<2-4 sentences>", "findings": [{"candidate": <number>, '
         '"evidence": "<exact line from the NEW code>", '
         '"message": "<what to reuse and why>"}]}\n'
-        'Write "analysis" first. Use "findings": [] if no candidate does the same job.'
+        'Write "analysis" first. Use "findings": [] if no candidate does the same job. '
+        '"evidence" must be copied from the new code section above, never from an existing candidate.'
     )
 
 
@@ -244,6 +245,25 @@ that stored result is reused inside the iteration, do not claim the operation is
 repeated. Do not infer a loop or repeated operation from a function name, a
 variable name, or a similar pattern elsewhere; the shown code must support it.
 When the diff does not establish repetition, return no finding.
+
+Not every smell needs a loop. A blocking call (time.sleep, requests.*, a
+synchronous database or file call) directly inside an `async def` stalls the
+event loop for every caller, loop or not. A membership test (`x in some_list`,
+`.index()`, `.count()`) evaluated for every item of another iterable, including
+inside a comprehension, is a quadratic scan when the container is a list.
+
+Judge size from what the code shows. Per-item work is only a smell when the
+items come from data that grows (records, rows, requests, files, query results).
+A collection that developers set by hand (callbacks, hooks, plugins, options, a
+few estimators or columns) is small by nature, so nested or repeated scans over
+it are not worth reporting. A cheap per-item step (an arithmetic update, a
+comparison, a dict or set lookup, one search with an already compiled pattern)
+is not a smell.
+
+Be consistent with your own analysis. If it concludes that the costly work is
+done once, hoisted out, batched, cheap, or on a small collection, "findings"
+must be empty. A finding must describe a cost the added lines introduce, never
+praise for work they avoid.
 
 Static-analysis signals are hints only. The LLM makes the judgement.
 If the code is likely small, cold-path, or the proposed optimisation would change

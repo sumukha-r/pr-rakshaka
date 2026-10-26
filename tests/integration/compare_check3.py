@@ -282,6 +282,21 @@ CASES = [
             "    await app.reload()\n"
         ),
     },
+    {
+        "name": "tiny_user_supplied_collection", "level": "hard", "expect": "clean",
+        "why": "scikit-learn #35135: a nested count over the few callbacks a developer passes in; "
+               "technically quadratic, in practice a handful of items",
+        "title": "Reject duplicate callbacks", "file": "src/callbacks.py",
+        "lines": [
+            "def validate_callbacks(callbacks):",
+            "    for callback in callbacks:",
+            "        n_same_class = sum(isinstance(cb, callback.__class__) for cb in callbacks)",
+            "        if n_same_class > 1:",
+            "            raise ValueError(",
+            "                f\"Only one callback of each class is allowed. Got {n_same_class}.\"",
+            "            )",
+        ],
+    },
 ]
 
 

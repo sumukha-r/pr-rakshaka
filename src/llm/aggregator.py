@@ -58,17 +58,26 @@ def evidence_in_diff(evidence: str, patch: str, *, min_len: int = 6,
     consecutive added lines (models often join two lines into one). It may not
     bridge context or removed lines, and very short quotes are rejected
     because they match almost anything.
+
+    A quote wrapped in one pair of quote marks or backticks (a model's habit:
+    "'time.sleep(2)'") is also tried without the wrapper. That cannot admit
+    invented code: whatever is left must still appear verbatim in an added line.
     """
     parts = [ln[1:] if ln.startswith("+") else ln for ln in evidence.splitlines()]
     ev = _norm(" ".join(parts))
     if len(ev) < min_len:
         return False
+    options = [ev]
+    if len(ev) >= 2 and ev[0] == ev[-1] and ev[0] in "'\"`":
+        inner = ev[1:-1].strip()
+        if len(inner) >= min_len:
+            options.append(inner)
     for run in _added_runs(patch):
         for start in range(len(run)):
             window = ""
             for line in run[start:start + max_lines]:
                 window = _norm(f"{window} {line}")
-                if ev in window:
+                if any(o in window for o in options):
                     return True
     return False
 

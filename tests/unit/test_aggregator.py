@@ -46,3 +46,24 @@ def test_keep_evidenced_checks_the_findings_own_file():
     wrong_file = Finding("smell", "b.py", "db.get(i)", "m")
     kept, dropped = keep_evidenced([good, wrong_file], {"a.py": PATCH, "b.py": hunk("+other()")})
     assert kept == [good] and dropped == [wrong_file]
+
+
+def test_quote_wrapped_in_quote_marks_or_backticks_is_accepted():
+    p = hunk("+async def poll():", "+    time.sleep(2)", "+    return 1")
+    assert evidence_in_diff("time.sleep(2)", p)
+    assert evidence_in_diff("'time.sleep(2)'", p)        # what a local model actually returned
+    assert evidence_in_diff('"time.sleep(2)"', p)
+    assert evidence_in_diff("`time.sleep(2)`", p)
+
+
+def test_unwrapping_cannot_admit_invented_code():
+    p = hunk("+async def poll():", "+    time.sleep(2)", "+    return 1")
+    assert not evidence_in_diff("'time.sleep(3)'", p)
+    assert not evidence_in_diff("'imaginary_call()'", p)
+    assert not evidence_in_diff("'ab'", p)                # what is left is below the minimum length
+
+
+def test_a_line_that_really_is_a_quoted_string_still_matches_as_written():
+    p = hunk('+    "id,name"', "+    x = 1")
+    assert evidence_in_diff('"id,name"', p)
+    

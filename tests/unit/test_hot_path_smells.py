@@ -201,3 +201,19 @@ def test_cli_format_has_real_newlines_and_the_smell():
                                  severity="high")])
     assert "\\n" not in out
     assert out.splitlines()[0] == "a.py  [n_plus_one, high]"
+
+
+def test_system_prompt_carries_the_judgement_rules():
+    from src.llm.prompts import HOT_PATH_SYSTEM as s
+    assert "Not every smell needs a loop" in s                # async-blocking and `in list` need no loop
+    assert "small by nature" in s                             # hand-set collections are not hot paths
+    assert "Be consistent with your own analysis" in s        # no finding that praises avoided work
+    assert "UNCHANGED context" in s and '"smell"' in s        # earlier rules are still there
+
+
+def test_real_pr_false_positive_is_a_fixture():
+    from tests.integration import compare_check3 as fx
+    case = next(c for c in fx.CASES if c["name"] == "tiny_user_supplied_collection")
+    assert case["expect"] == "clean" and "35135" in case["why"]
+    assert any("for cb in callbacks" in ln for ln in case["lines"])
+    

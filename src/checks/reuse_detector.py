@@ -27,11 +27,12 @@ Usage:
 
 import logging
 import os
+import re
 from typing import Callable, Optional
 
 from src.ingestion.diff_defs import AddedDef, added_definitions, edited_blocks
 from src.ingestion.pr_parser import PullRequest, fetch_source_at
-from src.llm.aggregator import Finding, keep_evidenced
+from src.llm.aggregator import Finding, evidence_in_diff, keep_evidenced
 from src.llm.client import chat_json
 from src.llm.prompts import REUSE_SYSTEM, build_reuse_prompt, is_test_file
 from src.rag.fingerprint import structurally_identical
@@ -113,14 +114,54 @@ def _collect_defs(pr: PullRequest, fetch_source: Optional[SourceFetcher] = None
     return defs, fetched
 
 
-def _review_def(pr: PullRequest, d: AddedDef, cands: list
-                ) -> tuple[list[Finding], list[Finding], str]:
-    """Ask the LLM about one new definition. Returns (findings, invalid, analysis)."""
+def _already_calls(d: AddedDef, c) -> bool:
+    """
+    True if the new code already calls the candidate, so it REUSES it rather than
+    copying it. The prompt asks the model not to report that, but small models do
+    anyway (they see "same job" and stop reading), so the rule is enforced here.
+    Matches `name(` and `module.name(`; never the `def name(` line itself.
+    """
+    name = _last_name(c.symbol)
+    if len(name) < 3 or not name.isidentifier() or name == d.name.split(".")[-1]:
+        return False
+    stem = re.escape(c.filepath.rsplit("/", 1)[-1].rsplit(".", 1)[0])
+    n = re.escape(name)
+    return bool(re.search(rf"(?<!def )(?<![\w.]){n}\s*\(|\b{stem}\.{n}\s*\(", d.source))
+
+
+def _review_def(pr: PullRequest, d: AddedDef, cands: list, patch: str = ""
+                ) -> tuple[list[Finding], list[Finding], str, bool]:
+    """
+    Ask the LLM about one new definition.
+    Returns (findings, invalid, analysis, retried).
+
+    If the model quotes a line that is not in the new code (typically a line of
+    the candidate it is comparing against), it is asked ONCE more with that
+    pointed out. The second answer faces the same evidence filter, so nothing
+    unverified gets through; the retry only rescues a correct judgement that was
+    quoted from the wrong place.
+    """
     prompt = build_reuse_prompt(pr.title, d, cands)
     log.info("reuse: sending %s in %s (~%d tokens)", d.name, d.filename,
              (len(prompt) + len(REUSE_SYSTEM)) // 4)
 
-    reply = chat_json(REUSE_SYSTEM, prompt)
+    findings, invalid, analysis = _parse_reply(chat_json(REUSE_SYSTEM, prompt), d, cands)
+    stray = [f for f in findings if patch and not evidence_in_diff(f.evidence, patch)]
+    if not stray:
+        return findings, invalid, analysis, False
+
+    quotes = "; ".join(repr(f.evidence.strip()) for f in stray)
+    log.info("reuse: %s quoted lines that are not in the new code; asking once more", d.name)
+    retry = (prompt + f"\n\nYour previous reply quoted {quotes}, which is not a line of the "
+             'NEW code above. Answer again. "evidence" must be ONE line copied from the '
+             'new code section, never from an existing candidate. If no line of the new '
+             'code shows the overlap, return "findings": [].')
+    findings2, invalid2, analysis2 = _parse_reply(chat_json(REUSE_SYSTEM, retry), d, cands)
+    return findings2, invalid + invalid2, analysis2 or analysis, True
+
+
+def _parse_reply(reply: dict, d: AddedDef, cands: list
+                 ) -> tuple[list[Finding], list[Finding], str]:
     analysis = reply.get("analysis")
     analysis = analysis if isinstance(analysis, str) else ""
 
@@ -148,6 +189,10 @@ def _review_def(pr: PullRequest, d: AddedDef, cands: list
             continue
         used.add(n)
         c = cands[n - 1]
+        if _already_calls(d, c):
+            invalid.append(Finding(CHECK_NAME, d.filename, evidence, message,
+                                   related=f"(the new code already calls {_last_name(c.symbol)})"))
+            continue
         findings.append(Finding(CHECK_NAME, d.filename, evidence, message,
                                 related=_related(c), kind=_kind(c)))
     return findings, invalid, analysis
@@ -229,8 +274,10 @@ def check_reuse(pr: PullRequest, *, retrieve: Optional[Retriever] = None,
     llm_findings: list[Finding] = []
     invalid: list[Finding] = []
     analyses: list[tuple[str, str]] = []
+    retries = 0
     for _, d, cands in reviewed:
-        fs, bad, analysis = _review_def(pr, d, cands)
+        fs, bad, analysis, retried = _review_def(pr, d, cands, patches.get(d.filename, ""))
+        retries += retried
         llm_findings.extend(fs)
         invalid.extend(bad)
         analyses.append((f"{d.name} ({d.filename})", analysis))
@@ -241,7 +288,8 @@ def check_reuse(pr: PullRequest, *, retrieve: Optional[Retriever] = None,
     if report is not None:
         report.update(defs_found=len(defs), blocks_found=sum(d.kind == "block" for d in defs),
                       files_fetched=fetched, with_candidates=exact + len(to_review),
-                      exact=exact, within_pr=within_pr, llm_calls=len(reviewed),
+                      exact=exact, within_pr=within_pr, llm_calls=len(reviewed) + retries,
+                      retries=retries,
                       raw_findings=len(llm_findings) + len(invalid), dropped=len(dropped))
         report["_analyses"] = analyses
         report["_dropped"] = dropped
