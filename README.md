@@ -7,9 +7,9 @@ An LLM-powered pull request reviewer that reads your diffs the way a senior engi
 https://github.com/user-attachments/assets/708cb824-3475-4774-a3a3-9a5cb64901a9
 
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/9c9650cc-e9a1-4d43-bdd4-90ec6e2cd450" width="33%" />
-  <img src="https://github.com/user-attachments/assets/4ce86457-55ac-4d3c-b4d8-dcb39d737c56" width="33%" />
-  <img src="https://github.com/user-attachments/assets/2972f035-9a15-46d7-964d-a21f961c2eb4" width="33%" />
+  <img src="https://github.com/user-attachments/assets/9c9650cc-e9a1-4d43-bdd4-90ec6e2cd450" width="32%" />
+  <img src="https://github.com/user-attachments/assets/4ce86457-55ac-4d3c-b4d8-dcb39d737c56" width="32%" />
+  <img src="https://github.com/user-attachments/assets/2972f035-9a15-46d7-964d-a21f961c2eb4" width="32%" />
 </p>
 
 ---
