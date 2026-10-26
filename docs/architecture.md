@@ -26,16 +26,16 @@ flowchart TD
     subgraph checks["⚙️ Three LLM Checks  —  Groq API · Llama 3.1"]
         D1["🧪 Check 1 · Missing Tests\nDid new logic get a test written?\nPre-signal: pytest-cov coverage diff"]
         D2["♻️ Check 2 · Possible Reuse / Duplication\nDoes this already exist in the codebase?\nRAG context · cosine > 0.92 = duplication"]
-        D3["🔥 Check 3 · Hot-path Smells\nN+1 queries · bare excepts · mutable defaults?\nPre-signal: radon cyclomatic complexity"]
+        D3["🔥 Check 3 · Hot-path Smells\nN+1 I/O · repeated work in loops · quadratic scans · blocking calls in async\nPre-signal: radon complexity of the functions the diff touches"]
     end
 
     D1 --> E
     D2 --> E
     D3 --> E
 
-    E["🛡️ Evidence Aggregator — Hallucination Filter\nEvery finding must cite a specific line from the diff\nNo line cited → finding is silently dropped"]
+    E["🛡️ Evidence Aggregator — Hallucination Filter (src/llm/aggregator.py)\nEvery finding must quote a line the diff ADDS\nApplied inside each check, then once more in main.py"]
 
-    E --> F["📝 Report Generator\nFinal LLM pass synthesises verified findings\ninto a structured Markdown review comment"]
+    E --> F["📝 Report Generator\nDeterministic: renders only verified findings\nas a Markdown review comment (no extra LLM pass)"]
 
     F --> G["📊 Streamlit Dashboard\nPaste PR URL · click Analyse\nFindings + evidence snippets + diff viewer"]
 ```
@@ -51,7 +51,7 @@ pr-rakshaka/
 ├── .gitignore
 ├── README.md                     # Project overview and usage notes
 ├── changelog.template
-├── main.py                       # Planned full-pipeline entry point; not yet wired
+├── main.py                       # Runs the three checks, final evidence pass, writes the report
 ├── requirements.txt
 │
 ├── docs/
@@ -90,13 +90,18 @@ pr-rakshaka/
 │   │   └── aggregator.py         # Finding structure and evidence-only filtering
 │   │
 │   └── report/
-│       └── __init__.py           # Report package placeholder; generator is planned
+│       ├── __init__.py
+│       └── generator.py          # CheckResult / Review dataclasses and render_markdown()
 │
 └── tests/
     ├── __init__.py
     ├── unit/
     │   ├── test_smell_catalog.py
-    │   └── test_hot_path_smells.py
+    │   ├── test_hot_path_smells.py
+    │   ├── test_compare_check3_fixtures.py
+    │   ├── test_aggregator.py
+    │   ├── test_report_generator.py
+    │   └── test_main.py
     └── integration/
         ├── compare_check1.py     # Known-answer Check 1 fixtures
         ├── compare_check2.py     # Known-answer Check 2 fixtures
@@ -115,6 +120,9 @@ Without RAG, the LLM only sees the diff and has no idea what the rest of the cod
 
 **Evidence-only principle**
 Any finding not grounded in a specific line from the diff is dropped before it reaches the user. This is not optional. Hallucinated findings destroy trust in a code review tool faster than missing a real one.
+
+**Deterministic report**
+The report generator does not call a model. Every sentence in it is either a finding that already passed the evidence filter or a fact about the run (which checks ran, token counts, how many findings were dropped). A summarising model could add claims nobody verified.
 
 **Static analysis as pre-filter, not the answer**
 radon and pytest-cov are run before the LLM and their signals are passed into the prompt as context, not returned as findings directly. A high cyclomatic complexity score goes into the smell prompt as: *"radon flagged this function at complexity 12 - does the diff justify it?"* The LLM decides. The tool just provides numbers.
