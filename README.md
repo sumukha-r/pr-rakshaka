@@ -14,6 +14,8 @@ https://github.com/user-attachments/assets/708cb824-3475-4774-a3a3-9a5cb64901a9
 
 ---
 
+Try it yourself: https://pr-rakshaka-bbs7et8y9yu8rck3qfzldq.streamlit.app/
+
 ## What it does
 
 You paste a GitHub PR URL. pr-rakshaka fetches the diff, reads it, and runs three focused checks:
@@ -40,13 +42,15 @@ Code review is the highest-leverage point to catch bad patterns before they comp
 ```
 PR URL → fetch diff (GitHub API)
        → retrieve similar code from codebase (ChromaDB + RAG)
-       → three LLM prompts, each reading the actual diff
-       → evidence aggregator drops any finding without a cited line
-       → report synthesised into a structured review comment
-       → Streamlit dashboard
+       → three checks, each prompting the LLM with the actual diff
+       → evidence filter drops any finding that does not quote a line the PR adds
+       → deterministic Markdown report (no LLM summarising pass)
+       → Streamlit app or command line
 ```
 
-The LLM (Groq / Llama 3.1, free tier) is the decision-maker throughout. Static analysis tools (radon for complexity, pytest-cov for coverage) run beforehand and feed their signals into the prompts as context, the LLM still makes the call.
+The LLM is the decision-maker throughout. It runs on Groq (`openai/gpt-oss-20b`, free tier) or on a local Ollama model, switchable per run. radon computes complexity for the functions a PR touches and passes it to the smell check as a hint; the LLM still makes the call.
+
+The report is built without an LLM on purpose: a summarising model could add claims nobody checked, which would break the evidence-only rule.
 
 Full design: [`docs/architecture.md`](docs/architecture.md)
 
@@ -65,28 +69,49 @@ export GROQ_API_KEY=your_key_here
 # optional: GitHub token for private repos or higher rate limits
 export GITHUB_TOKEN=your_token_here
 
+# optional: use a local model through Ollama instead of Groq
+export LOCAL_MODEL=qwen2.5-coder:7b
+
 # the reuse check needs the repo indexed once (slow on large repos)
 python src/rag/indexer.py owner/repo
-
-# review a PR: prints a Markdown review comment
-python main.py https://github.com/owner/repo/pull/123
-python main.py <PR URL> --provider groq --out review.md
-python main.py <PR URL> --checks tests,smells      # skip the reuse check
-python main.py <PR URL> --json                     # machine-readable
 ```
 
-Run the offline unit tests (no keys, no GPU, no network) with `python -m pytest`.
+### Run the web app
+
+```bash
+streamlit run app.py
+```
+
+Paste a PR URL, choose the model backend and which checks to run, and press Analyse. Results appear in four tabs: Findings, Diff, PR comment (downloadable as Markdown or JSON) and Run details. The sidebar also has an option to index the repo first if it has not been indexed yet.
+
+### Or use the command line
+
+```bash
+python main.py https://github.com/owner/repo/pull/123            # prints a Markdown review
+python main.py <PR URL> --provider groq --out review.md
+python main.py <PR URL> --checks tests,smells                     # skip the reuse check
+python main.py <PR URL> --json                                    # machine-readable
+python main.py <PR URL> --index                                   # index the repo first if needed
+```
+
+The web app and the command line call the same function, so they always give the same review.
+
+### Tests
+
+Run the offline unit tests (no keys, no GPU, no network) with `python -m pytest`. The scripts in `tests/integration/` compare the Groq and local models on hand-written cases and do need a model.
+
+> The reuse check only runs on repositories that have been indexed. On any other repo it is skipped and the report says so, rather than guessing.
 
 ---
 
 ## Stack
 
-- **Groq API** (Llama 3.1 8B, free tier) - LLM reviewer
-- **ChromaDB** + **sentence-transformers** - RAG for codebase context
-- **LangChain** - RAG chain and prompt orchestration
+- **Groq API** (`openai/gpt-oss-20b`, free tier) and **Ollama** (local, e.g. Qwen2.5-Coder) - LLM reviewer
+- **ChromaDB** + **sentence-transformers** (all-MiniLM-L6-v2) - vector search for codebase context
 - **GitHub REST API** - PR diff fetching
-- **Streamlit** - dashboard
-- **radon**, **pytest-cov** - pre-filter signals
+- **Streamlit** - web app
+- **radon** - complexity signals for the smell check
+- **pytest** - unit tests
 
 ---
 
@@ -102,6 +127,13 @@ Run the offline unit tests (no keys, no GPU, no network) with `python -m pytest`
 | Evidence aggregator (`src/llm/aggregator.py`) | v1 |
 | Report generator (`src/report/generator.py`, deterministic Markdown) | v1 |
 | Pipeline entry point (`main.py`) | v1 |
-| Streamlit UI | v1 |
+| Streamlit UI (`app.py`) | v1 |
+
+## Known limitations
+
+- Python only: PRs that change no Python source files are skipped.
+- The reuse check needs the repository indexed first, and the index reflects the code at the time it was built.
+- The three checks have been tuned and measured on hand-written fixtures. An evaluation on real PRs with a held-out test set is in progress, so no accuracy numbers are claimed yet.
+- Findings are leads for a human reviewer, not verdicts. Each one quotes the line it is based on so it can be checked quickly.
 
 ---
