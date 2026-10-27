@@ -6,12 +6,12 @@ from pathlib import Path
 import pytest
 
 pytest.importorskip("streamlit")
-from streamlit.testing.v1 import AppTest  # noqa: E402
+from streamlit.testing.v1 import AppTest 
 
-import main  # noqa: E402
-from src.llm.aggregator import Finding  # noqa: E402
-from src.report.generator import CheckResult, Review  # noqa: E402
-from tests.unit.helpers import hunk, make_file, make_pr  # noqa: E402
+import main  
+from src.llm.aggregator import Finding  
+from src.report.generator import CheckResult, Review  
+from tests.unit.helpers import hunk, make_file, make_pr  
 
 APP = str(Path(__file__).resolve().parents[2] / "app.py")
 URL = "https://github.com/demo/demo/pull/7"
@@ -157,3 +157,40 @@ def test_a_second_run_replaces_the_first_result(pipeline):
     submit(at, "not a url")
     assert at.error and not at.metric
     
+
+
+# ---- demo limits (DEMO_MODE=1, used on the public Space) -------------------
+
+def run_once(at):
+    at.text_input[0].set_value(URL)
+    at.button[0].click()
+    at.run()
+    return at
+
+
+def test_demo_limit_stops_the_fourth_review_in_one_visit(pipeline, monkeypatch):
+    monkeypatch.setenv("DEMO_MODE", "1")
+    monkeypatch.setenv("MAX_REVIEWS_PER_VISIT", "3")
+    at = open_app()
+    for _ in range(3):
+        run_once(at)
+        assert not at.error
+    run_once(at)
+    assert any("3 reviews per visit" in e.value for e in at.error)
+    assert len(pipeline) == 3                    # the pipeline was not called a 4th time
+
+
+def test_demo_mode_forces_groq_and_never_indexes(pipeline, monkeypatch):
+    monkeypatch.setenv("DEMO_MODE", "1")
+    at = open_app()
+    run_once(at)
+    kwargs = pipeline[0][1]
+    assert kwargs["provider"] == "groq" and kwargs["index_if_missing"] is False
+
+
+def test_no_limit_outside_demo_mode(pipeline, monkeypatch):
+    monkeypatch.delenv("DEMO_MODE", raising=False)
+    at = open_app()
+    for _ in range(5):
+        run_once(at)
+    assert not at.error and len(pipeline) == 5

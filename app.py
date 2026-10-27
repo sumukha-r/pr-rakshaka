@@ -13,6 +13,9 @@ from __future__ import annotations
 
 import json
 import os
+import threading
+import time
+from collections import deque
 
 import streamlit as st
 
@@ -52,6 +55,41 @@ def _load_streamlit_secrets() -> None:
 
 
 _load_streamlit_secrets()
+
+
+# ---------------------------------------------------------------------------
+# Demo limits. Off on your own machine; set DEMO_MODE=1 on a public Space.
+# ---------------------------------------------------------------------------
+
+DEMO_MODE = os.getenv("DEMO_MODE") == "1"
+MAX_PER_VISIT = int(os.getenv("MAX_REVIEWS_PER_VISIT", "3"))
+MAX_PER_HOUR = int(os.getenv("MAX_REVIEWS_PER_HOUR", "20"))
+
+
+@st.cache_resource
+def _hour_log():
+    """Start times of recent reviews, shared by every visitor of this running app."""
+    return deque(), threading.Lock()
+
+
+def _demo_limit_message() -> str | None:
+    """None if this review may run (and it is counted), else why it may not."""
+    if not DEMO_MODE:
+        return None
+    if st.session_state.get("reviews_used", 0) >= MAX_PER_VISIT:
+        return (f"This demo allows {MAX_PER_VISIT} reviews per visit. "
+                "Clone the repository to run it without limits.")
+    log, lock = _hour_log()
+    now = time.time()
+    with lock:
+        while log and now - log[0] > 3600:
+            log.popleft()
+        if len(log) >= MAX_PER_HOUR:
+            return ("The demo has reached its hourly limit to protect the free model quota. "
+                    "Please try again later.")
+        log.append(now)
+    st.session_state["reviews_used"] = st.session_state.get("reviews_used", 0) + 1
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -202,17 +240,21 @@ if go:
         st.session_state["error"] = ("That does not look like a pull request URL. "
                                      "Use https://github.com/owner/repo/pull/123")
     else:
+        limit = _demo_limit_message() if settings["checks"] else None
         if not settings["checks"]:
             st.session_state["error"] = "Pick at least one check in the sidebar."
+        elif limit:
+            st.session_state["error"] = limit
         else:
             with st.status("Reviewing...", expanded=True) as status:
                 try:
                     review = pipeline.run_review(
                         url.strip(),
                         checks=[c for c in CHECK_LABELS if c in settings["checks"]],
-                        provider=None if settings["provider"] == "auto" else settings["provider"],
+                        provider=("groq" if DEMO_MODE else
+                                  None if settings["provider"] == "auto" else settings["provider"]),
                         token=settings["token"] or None,
-                        index_if_missing=settings["index"],
+                        index_if_missing=settings["index"] and not DEMO_MODE,
                         progress=lambda message: status.write(message),
                     )
                     st.session_state["review"] = review
@@ -227,3 +269,4 @@ elif st.session_state.get("review"):
     _show(st.session_state["review"])
 else:
     st.caption("Results appear here. Public repositories work without a GitHub token.")
+    
