@@ -69,3 +69,10 @@ class GitHub:
         a = self.get(f"/repos/{repo}/pulls/{number}/comments", {"per_page": 100})
         b = self.get(f"/repos/{repo}/issues/{number}/comments", {"per_page": 100})
         return sorted(list(a) + list(b), key=lambda c: c.get("created_at", ""))
+
+    def pr_commits(self, repo: str, number: int) -> list[dict]:
+        return list(self.get(f"/repos/{repo}/pulls/{number}/commits", {"per_page": 100}))
+
+    def compare(self, repo: str, base: str, head: str) -> dict:
+        """The diff from the merge base of `base` and `head` to `head`, like a PR at that commit."""
+        return self.get(f"/repos/{repo}/compare/{base}...{head}", {"per_page": 100})

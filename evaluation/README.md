@@ -7,15 +7,16 @@ merged pull requests, with a dev set to tune against and a test set that is run 
 ## Steps
 
 1. **Collect candidates** (needs `GITHUB_TOKEN`):
-   `python -m evaluation.collect_candidates --repos scikit-learn/scikit-learn psf/requests`
-   writes `evaluation/candidates.csv`: PRs from before Nov 2022 where a reviewer asked for a test,
-   flagged a performance problem or pointed at existing code, plus quiet PRs to use as negatives.
-   It only finds candidates. Open each PR and read the comment before you label it.
-2. **Label** each PR you keep: `python -m evaluation.labels stub <PR URL>` writes
-   `evaluation/labels/<owner>__<repo>__<n>.json`. Edit it by hand (see the `expect` values in
-   `labels.py`). A positive needs the reviewer's quote and the file and line the tool should quote.
-   Add an `edge_case` tag for the unusual ones (moved function, tiny loop, huge PR...).
-   Check your work with `python -m evaluation.labels validate`.
+   `python -m evaluation.collect_candidates --repos scikit-learn/scikit-learn psf/requests --per-hint 40`
+   writes `evaluation/candidates.csv`: PRs where a reviewer asked for a test, flagged a performance
+   problem or pointed at existing code, plus quiet PRs to use as negatives. PRs with long arguments
+   (`--max-discussion`, default 25 comments) are skipped. Add `--state open` to take open PRs instead.
+   Each row records `snapshot_sha`, the commit the reviewer was looking at.
+2. **Label** the candidates, one keystroke each:
+   `python -m evaluation.label_candidates evaluation/candidates.csv --limit 25`
+   It shows the reviewer's comment and the code, and asks whether the tool could be expected to catch
+   it. Skipped PRs are remembered. Labels land in `evaluation/labels/`; for a hand-made one use
+   `python -m evaluation.labels stub <PR URL>`. Check with `python -m evaluation.labels validate`.
 3. **Split once**: `python -m evaluation.split --seed 11`, then commit `split.json` and tag it.
    From here the test labels must not change.
 4. **Tune on dev**: `python -m evaluation.run_eval --split dev --provider groq` (and `local`), then
@@ -27,6 +28,14 @@ merged pull requests, with a dev set to tune against and a test set that is run 
 6. **Test once**: `python -m evaluation.run_eval --split test --provider groq --final`, the same for
    `local`, then `python -m evaluation.score --split test`. Do not change a prompt afterwards. If you
    do, the test set has become a dev set.
+
+## Why the PR is reviewed as of the reviewer's comment
+
+By the time a PR was merged the author had usually fixed what the reviewer asked for, so the merged
+diff has the test and the tool would rightly say nothing. Each label stores `snapshot_sha` and the PR
+is rebuilt from the diff up to that commit (`snapshot.py`). That is also why it does not matter that
+the repository has changed since: nothing is read from today's code, except the reuse index, which is
+built at the PR's base commit (next section). Merged, closed and open PRs all work this way.
 
 ## Reuse check on old PRs
 

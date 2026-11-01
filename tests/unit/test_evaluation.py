@@ -15,17 +15,17 @@ from evaluation.github_api import GitHub
 # collect_candidates
 # ---------------------------------------------------------------------------
 
-def comment(login, body, typ="User", url="https://x/c1"):
+def comment(login, body, typ="User", url="https://x/c1", **extra):
     return {"user": {"login": login, "type": typ}, "body": body, "html_url": url,
-            "created_at": "2020-01-01"}
+            "created_at": "2020-01-01T12:00:00Z", **extra}
 
 
 def test_reviewer_comment_skips_the_author_and_bots():
     comments = [comment("author", "I will add a test later"),
                 comment("ci[bot]", "please add a test", typ="Bot"),
                 comment("reviewer", "Looks good, but please Add a Test for the empty case.", url="https://x/c9")]
-    phrase, snippet, url = cc.find_reviewer_comment(comments, cc.PHRASES["tests"], "author")
-    assert phrase == "add a test" and "empty case" in snippet and url == "https://x/c9"
+    m = cc.find_reviewer_comment(comments, cc.PHRASES["tests"], "author")
+    assert m["phrase"] == "add a test" and "empty case" in m["snippet"] and m["url"] == "https://x/c9"
 
 
 def test_no_matching_reviewer_comment_gives_none():
@@ -61,25 +61,34 @@ class FakeGitHub:
         self.prs = {
             1: dict(number=1, title="Add thing", merged_at="2020-05-01T00:00:00Z", additions=60,
                     deletions=2, changed_files=2, review_comments=2, comments=1,
-                    user={"login": "alice"}, base={"sha": "b" * 40}, labels=[]),
+                    user={"login": "alice"}, base={"sha": "b" * 40}, head={"sha": "1" * 40}, labels=[]),
             2: dict(number=2, title="Docs only", merged_at="2020-05-02T00:00:00Z", additions=60,
                     deletions=0, changed_files=1, review_comments=1, comments=0,
-                    user={"login": "alice"}, base={"sha": "c" * 40}, labels=[]),
+                    user={"login": "alice"}, base={"sha": "c" * 40}, head={"sha": "2" * 40}, labels=[]),
             3: dict(number=3, title="Quiet change", merged_at="2020-05-03T00:00:00Z", additions=40,
                     deletions=1, changed_files=1, review_comments=0, comments=0,
-                    user={"login": "bob"}, base={"sha": "d" * 40}, labels=[]),
+                    user={"login": "bob"}, base={"sha": "d" * 40}, head={"sha": "3" * 40}, labels=[]),
+            4:dict(number=4, title="Long argument", merged_at="2020-05-04T00:00:00Z", additions=60,
+                    deletions=0, changed_files=1, review_comments=30, comments=40,
+                    user={"login": "alice"}, base={"sha": "e" * 40}, head={"sha": "4" * 40}, labels=[]),
         }
         self.files = {1: [{"filename": "pkg/a.py"}], 2: [{"filename": "docs/a.rst"}],
-                      3: [{"filename": "pkg/b.py"}, {"filename": "pkg/tests/test_b.py"}]}
+                      3: [{"filename": "pkg/b.py"}, {"filename": "pkg/tests/test_b.py"}],
+                      4: [{"filename": "pkg/c.py"}]}
 
     def get(self, path, params=None):
         if path == "/search/issues":
-            return {"items": [{"number": n} for n in (1, 2, 3)]}
+            return {"items": [{"number": n} for n in (1, 2, 3, 4)]}
         n = int(path.split("/")[5])
         if path.endswith("/files"):
             return self.files[n]
+        if path.endswith("/commits"):
+            return [{"sha": "a" * 40, "commit": {"committer": {"date": "2020-01-01T10:00:00Z"}}},
+                    {"sha": "f" * 40, "commit": {"committer": {"date": "2020-01-02T10:00:00Z"}}}]
         if path.endswith("/pulls/%d/comments" % n):
-            return [comment("carol", "Please add a test for this.")] if n == 1 else []
+            return ([comment("carol", "Please add a test for this.", path="pkg/a.py",
+                             diff_hunk="@@ -1 +1 @@\n+def foo(x):", original_commit_id="9" * 40)]
+                    if n in (1, 4) else [])
         if path.endswith("/issues/%d/comments" % n):
             return []
         return self.prs[n]
@@ -89,9 +98,11 @@ def test_collect_keeps_only_prs_with_a_reviewer_quote_and_python_source():
     gh = GitHub(get=FakeGitHub().get, pause=0)
     rows = cc.collect(gh, ["o/r"], since="2019-01-01", until="2022-10-31", hints=["tests"],
                       log=lambda m: None)
-    assert [r["number"] for r in rows] == [1]
+    assert [r["number"] for r in rows] == [1]               # 4 is skipped: a 70-comment argument
     r = rows[0]
     assert r["matched"] == "add a test" and r["base_sha"] == "b" * 40
+    assert r["snapshot_sha"] == "9" * 40 and r["path"] == "pkg/a.py" and "def foo" in r["hunk"]
+    assert r["head_sha"] == "1" * 40 and r["discussion"] == 3
     assert r["url"] == "https://github.com/o/r/pull/1" and r["py_source_files"] == 1
 
 
@@ -99,6 +110,7 @@ def test_collect_negatives_need_no_review_comments_and_some_source():
     gh = GitHub(get=FakeGitHub().get, pause=0)
     rows = cc.collect(gh, ["o/r"], since="a", until="b", hints=["negative"], log=lambda m: None)
     assert [r["number"] for r in rows] == [3] and rows[0]["has_tests"] is True
+    assert rows[0]["snapshot_sha"] == "3" * 40               # no comment: the PR's own last commit
 
 
 def test_csv_round_trip(tmp_path):
@@ -117,7 +129,7 @@ def test_csv_round_trip(tmp_path):
 
 def make_label(number, repo="o/r", **expects):
     meta = {"number": number, "title": f"PR {number}", "merged_at": "2020-01-01T00:00:00Z",
-            "base": {"sha": "a" * 40}}
+            "base": {"sha": "a" * 40}, "head": {"sha": "7" * 40}}
     label = lab.stub(meta, repo)
     for check, exp in expects.items():
         c = label["checks"][check]
@@ -131,6 +143,8 @@ def make_label(number, repo="o/r", **expects):
 def test_stub_starts_unclear_and_valid_otherwise():
     label = make_label(5)
     assert label["id"] == "o__r__5" and label["base_sha"] == "a" * 40
+    assert label["snapshot_sha"] == "7" * 40
+    assert lab.stub({"number": 1, "base": {}, "head": {"sha": "7" * 40}}, "o/r", "5" * 40)["snapshot_sha"] == "5" * 40
     assert all(c["expect"] == "unclear" for c in label["checks"].values())
     assert lab.problems(label) == []
 
@@ -213,8 +227,11 @@ def test_run_one_pins_the_index_only_when_reuse_is_run():
 
     with_reuse = make_label(1, reuse="finding", missing_tests="none")
     without = make_label(2, missing_tests="none")
-    run_eval.run_one(with_reuse, "groq", review_fn=review, ref_ctx=Ctx)
-    run_eval.run_one(without, "groq", review_fn=review, ref_ctx=Ctx)
+    built = []
+    builder = lambda label: built.append(label["snapshot_sha"]) or "PR-OBJECT"
+    run_eval.run_one(with_reuse, "groq", review_fn=review, ref_ctx=Ctx, pr_builder=builder)
+    run_eval.run_one(without, "groq", review_fn=review, ref_ctx=Ctx, pr_builder=builder)
+    assert built == ["7" * 40, "7" * 40]                                # reviewed as of the snapshot
     assert seen == ["a" * 40, None]
     assert sorted(calls[0]["checks"]) == ["missing_tests", "reuse"] and calls[1]["checks"] == ["missing_tests"]
     assert calls[0]["provider"] == "groq" and calls[0]["index_if_missing"] is True
@@ -223,7 +240,8 @@ def test_run_one_pins_the_index_only_when_reuse_is_run():
 def test_run_one_records_errors_instead_of_raising():
     def boom(url, **kw): raise RuntimeError("rate limited")
     out = run_eval.run_one(make_label(1, missing_tests="none"), "groq", review_fn=boom,
-                           ref_ctx=lambda ref: __import__("contextlib").nullcontext())
+                           ref_ctx=lambda ref: __import__("contextlib").nullcontext(),
+                           pr_builder=lambda label: "PR")
     assert "rate limited" in out["error"]
 
 
@@ -361,3 +379,99 @@ def test_index_names_differ_by_commit_and_follow_the_context(monkeypatch):
         assert len(indexer._collection_name("scikit-learn/scikit-learn", "f" * 40)) <= 63
     finally:
         sys.modules.pop("src.rag.indexer", None)
+
+
+# ---------------------------------------------------------------------------
+# snapshots and the quick labeller
+# ---------------------------------------------------------------------------
+
+from evaluation import label_candidates as lc  # noqa: E402
+from evaluation import snapshot  # noqa: E402
+
+COMMITS = [{"sha": "a" * 40, "commit": {"committer": {"date": "2020-01-01T10:00:00Z"}}},
+           {"sha": "b" * 40, "commit": {"committer": {"date": "2020-01-03T10:00:00Z"}}},
+           {"sha": "c" * 40, "commit": {"committer": {"date": "2020-01-02T10:00:00Z"}}}]
+
+
+def test_snapshot_is_the_commit_the_reviewer_saw():
+    assert snapshot.snapshot_sha_for({"commit_id": "9" * 40}, COMMITS) == "9" * 40
+    # a conversation comment: the newest commit made before it, whatever order the list is in
+    assert snapshot.snapshot_sha_for({"created_at": "2020-01-02T12:00:00Z"}, COMMITS) == "c" * 40
+    assert snapshot.snapshot_sha_for({"created_at": "2019-12-31T00:00:00Z"}, COMMITS) == ""
+
+
+def test_build_pr_turns_a_compare_result_into_a_pull_request():
+    seen = {}
+    def get(path, params=None):
+        seen["path"] = path
+        return {"files": [{"filename": "pkg/a.py", "status": "added", "additions": 2, "deletions": 0,
+                           "patch": "@@ -0,0 +1,2 @@\n+def foo(x):\n+    return x"}]}
+    label = make_label(5)
+    label["snapshot_sha"] = "9" * 40
+    pr = snapshot.build_pr(GitHub(get=get, pause=0), label)
+    assert seen["path"] == f"/repos/o/r/compare/{'a' * 40}...{'9' * 40}"
+    assert pr.head_sha == "9" * 40 and pr.number == 5 and pr.additions == 2
+    assert snapshot.added_lines_of(pr, "pkg/a.py") == ["def foo(x):", "    return x"]
+    assert snapshot.added_lines_of(pr, "other.py") == []
+
+
+def test_open_pr_queries_use_creation_date_and_no_merge_filter():
+    q = cc.search_queries("o/r", "tests", "2024-01-01", "2026-10-31", state="open")[0]
+    assert "is:open created:2024-01-01..2026-10-31" in q and "is:merged" not in q
+
+
+def candidate(**over):
+    row = {"repo": "o/r", "number": "5", "url": "https://github.com/o/r/pull/5", "hint": "tests",
+           "merged_at": "2021-07-26", "title": "Fix json", "author": "a", "matched": "add a test",
+           "snippet": "please add a test for this", "comment_url": "https://x/c", "path": "pkg/a.py",
+           "hunk": "@@ -1 +1 @@\n+def foo(x):", "snapshot_sha": "9" * 40, "additions": "47",
+           "deletions": "18", "changed_files": "7", "py_source_files": "4", "has_tests": "False",
+           "review_comments": "4", "comments": "2", "discussion": "6", "base_sha": "a" * 40,
+           "head_sha": "1" * 40}
+    row.update(over)
+    return row
+
+
+def scripted(*answers):
+    it = iter(answers)
+    return lambda prompt: next(it)
+
+
+def fake_pr(_row):
+    return snapshot.PullRequest(
+        repo="o/r", number=5, title="t", author="", state="closed", merged=True, body="",
+        additions=2, deletions=0, changed_files=1, head_sha="9" * 40,
+        files=[snapshot.PRFile("pkg/a.py", "modified", 2, 0, "@@ -1 +1,2 @@\n+import os\n+def foo(x):")])
+
+
+def test_labeller_records_a_finding_with_the_quoted_line_and_reviewer_quote():
+    out = []
+    ans = scripted("f", "2", "all", "moved_function")           # finding, line 2, others silent, tag
+    label = lc.decide(candidate(), fake_pr, ans, out.append)
+    c = label["checks"]
+    assert c["missing_tests"] == {"expect": "finding", "note": "",
+                                  "targets": [{"file": "pkg/a.py", "evidence_contains": "def foo(x):"}],
+                                  "source": {"url": "https://x/c", "quote": "please add a test for this"}}
+    assert c["smell"]["expect"] == "none" and c["reuse"]["expect"] == "none"
+    assert label["edge_case"] == "moved_function" and label["snapshot_sha"] == "9" * 40
+    assert lab.problems(label) == []
+    assert any("please add a test" in line for line in out)
+
+
+def test_labeller_other_checks_default_to_unclear_and_skip_writes_nothing():
+    label = lc.decide(candidate(), fake_pr, scripted("f", "", "", ""), lambda m: None)
+    assert label["checks"]["smell"]["expect"] == "unclear"
+    assert label["checks"]["missing_tests"]["targets"] == [{"file": "pkg/a.py"}]      # blank = file only
+    assert lc.decide(candidate(), fake_pr, scripted("s"), lambda m: None) is None
+    with pytest.raises(EOFError):
+        lc.decide(candidate(), fake_pr, scripted("q"), lambda m: None)
+
+
+def test_labeller_quiet_prs_are_silent_but_check_one_needs_tests_in_the_pr():
+    quiet = candidate(hint="negative", has_tests="True", snippet="", path="", hunk="")
+    full = lc.decide(quiet, fake_pr, scripted("", ""), lambda m: None)
+    assert [full["checks"][c]["expect"] for c in lab.CHECKS] == ["none", "none", "none"]
+    no_tests = lc.decide({**quiet, "has_tests": "False"}, fake_pr, scripted("", ""), lambda m: None)
+    assert no_tests["checks"]["missing_tests"]["expect"] == "unclear"
+    assert no_tests["checks"]["smell"]["expect"] == "none"
+    assert lab.problems(full) == []

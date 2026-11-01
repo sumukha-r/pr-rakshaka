@@ -25,17 +25,25 @@ def run_dir(split: str, provider: str, root: Optional[Path] = None) -> Path:
     return Path(root or RUN_DIR) / split / provider
 
 
+def _snapshot_pr(label: dict):
+    from evaluation.github_api import GitHub
+    from evaluation.snapshot import build_pr
+    return build_pr(GitHub(), label)
+
+
 def run_one(label: dict, provider: str, *, review_fn: Optional[Callable] = None,
-            ref_ctx=None) -> dict:
-    """Review one labelled PR. Returns the Review as a dict, or {"error": ...}."""
+            ref_ctx=None, pr_builder: Optional[Callable] = None) -> dict:
+    """Review one labelled PR as of its snapshot commit. Returns the Review as a dict,
+    or {"error": ...}."""
     if review_fn is None:
         from main import run_review as review_fn
     if ref_ctx is None:
         from src.rag.indexer import use_index_ref as ref_ctx
     checks = scored_checks(label)
     try:
+        pr = (pr_builder or _snapshot_pr)(label)
         with ref_ctx(label["base_sha"] if "reuse" in checks else None):
-            review = review_fn(label["url"], checks=checks, provider=provider,
+            review = review_fn(pr, checks=checks, provider=provider,
                                index_if_missing=True)
         return review.to_dict()
     except Exception as exc:  # noqa: BLE001 - record it, keep going with the other PRs

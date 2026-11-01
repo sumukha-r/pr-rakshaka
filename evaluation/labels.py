@@ -33,14 +33,18 @@ def blank_check() -> dict:
     return {"expect": "unclear", "targets": [], "source": {"url": "", "quote": ""}, "note": ""}
 
 
-def stub(pr_meta: dict, repo: str) -> dict:
-    """A label template from GitHub's /pulls/N JSON."""
+def stub(pr_meta: dict, repo: str, snapshot_sha: Optional[str] = None) -> dict:
+    """A label template from GitHub's /pulls/N JSON.
+
+    `snapshot_sha` is the commit the PR is reviewed at (see snapshot.py). By default
+    it is the PR's last commit; for a positive, use the commit the reviewer saw."""
     number = pr_meta["number"]
     return {
         "id": label_id(repo, number), "repo": repo, "number": number,
         "url": f"https://github.com/{repo}/pull/{number}", "title": pr_meta.get("title", ""),
         "merged_at": (pr_meta.get("merged_at") or "")[:10],
         "base_sha": (pr_meta.get("base") or {}).get("sha", ""),
+        "snapshot_sha": snapshot_sha or (pr_meta.get("head") or {}).get("sha", ""),
         "edge_case": "",
         "checks": {c: blank_check() for c in CHECKS},
     }
@@ -49,7 +53,7 @@ def stub(pr_meta: dict, repo: str) -> dict:
 def problems(label: dict) -> list[str]:
     """Everything wrong with one label, as readable sentences (empty list = fine)."""
     out = []
-    for key in ("id", "repo", "number", "url", "base_sha"):
+    for key in ("id", "repo", "number", "url", "base_sha", "snapshot_sha"):
         if not label.get(key):
             out.append(f"missing '{key}'")
     checks = label.get("checks", {})
