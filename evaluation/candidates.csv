@@ -1,3 +1,376 @@
-repo,number,url,hint,merged_at,title,author,matched,snippet,comment_url,additions,deletions,changed_files,py_source_files,has_tests,review_comments,comments,base_sha
-psf/requests,5797,https://github.com/psf/requests/pull/5797,tests,2021-07-06,Switch LGPL'd chardet for MIT licensed charset_normalizer,ashb,no test,"as long as the library has existed. It was also created with the message of ""We can do testing if needed"" as in you did no testing expecting us to just merge it because the ASF needed it, which defeats the purpose of designing for stability. > One more thing that came out in the discussion is to propose you to donate `requests` to the ASF (an",https://github.com/psf/requests/pull/5797#issuecomment-837020626,119,27,10,6,False,25,105,33d448eb21bbbf643cc1f61493b0b606d8352aea
-psf/requests,5856,https://github.com/psf/requests/pull/5856,tests,2021-07-26,Fix inconsistent exception type in response.json() method,steveberdy,add a test,"without issue, so please let me know if there were other concerns you had. While we're here it would also be good to add a test exercising this change. Something to the effect of the example below should be sufficient: ``` def test_json_decode_compatibility(self, httpbin): r = requests.get(httpbin('bytes/20')) with pytest.raises(re",https://github.com/psf/requests/pull/5856#discussion_r675272659,47,18,7,4,True,41,8,a1a6a549a0143d9b32717dbe3d75cd543ae5a4f6
+repo,number,url,hint,merged_at,title,author,matched,snippet,comment_url,path,hunk,snapshot_sha,additions,deletions,changed_files,py_source_files,has_tests,review_comments,comments,discussion,base_sha,head_sha
+psf/requests,5924,https://github.com/psf/requests/pull/5924,smell,2021-11-24,Refactor rebuild_proxies to separate resolution and auth handling,nateprewitt,performance,This change should actually fix the performance regression in most cases (`Session.request` - which I assume is the most common flow - always sets `proxies` on `kwargs`).,https://github.com/psf/requests/pull/5924#discussion_r701262009,requests/sessions.py,"@@ -633,7 +620,10 @@ def send(self, request, **kwargs):
+         kwargs.setdefault('stream', self.stream)
+         kwargs.setdefault('verify', self.verify)
+         kwargs.setdefault('cert', self.cert)
+-        kwargs.setdefault('proxies', self.rebuild_proxies(request, self.proxies))
++        if 'proxies' not in kwargs:",442ccb48eaf9266723e58121a202f5278cffbd29,45,18,3,2,True,7,2,9,aae78010e987a414c176bddbf474cd554505219c,442ccb48eaf9266723e58121a202f5278cffbd29
+scikit-learn/scikit-learn,24074,https://github.com/scikit-learn/scikit-learn/pull/24074,negative,2022-08-05,MNT Use is_sparse to validate sparse data from pandas,thomasjpfan,,,,,,affc2fc1f10fdc087510dd837fb0c79b48e321ab,16,12,1,1,False,0,0,0,72f91ed7c01bd14323b1954d6d658bd7779e5054,affc2fc1f10fdc087510dd837fb0c79b48e321ab
+scikit-learn/scikit-learn,24759,https://github.com/scikit-learn/scikit-learn/pull/24759,negative,2022-10-26,MAINT Release 1.1.3 [cd build],glemaitre,,,,,,bdbd2d843969553699c34aff48b928c0a28fca1a,136,221,19,4,True,0,0,0,36958fb240fbe435673a9e3c52e769f01f36bec0,bdbd2d843969553699c34aff48b928c0a28fca1a
+scikit-learn/scikit-learn,13467,https://github.com/scikit-learn/scikit-learn/pull/13467,reuse,2019-08-07,Implement RMSE (root-mean-square error) metric and scorer,urvang96,duplicat,please try to avoid duplicate code,https://github.com/scikit-learn/scikit-learn/pull/13467#discussion_r268421336,sklearn/metrics/regression.py,"@@ -249,7 +256,10 @@ def mean_squared_error(y_true, y_pred,
+             # pass None as weights to np.average: uniform mean
+             multioutput = None
+ 
+-    return np.average(output_errors, weights=multioutput)
++    if squared:
++        return np.sqrt(np.average(output_errors, weights=multioutput))",75c66ffae439cdffce3702af88e2a1e759af2257,29,3,6,2,True,11,8,19,a83c8311dfdbf74dea584d45c6f254bc8171054d,706029e7a07316b4e4d0bf1c6cbf93acd82a5d06
+scikit-learn/scikit-learn,13863,https://github.com/scikit-learn/scikit-learn/pull/13863,reuse,2019-05-29,[WIP] DEP remove lars positive parameter,XavierSATTLER,duplicat,"rather than duplicating this error message can you make a private function. Something like `_check_positive_coding(method, positive)` that would crash if needed.",https://github.com/scikit-learn/scikit-learn/pull/13863#discussion_r285394090,sklearn/decomposition/dict_learning.py,"@@ -729,6 +744,12 @@ def dict_learning_online(X, n_components=2, alpha=1, n_iter=100,
+ 
+     if method not in ('lars', 'cd'):
+         raise ValueError('Coding method not supported as a fit algorithm.')
++
++    if method == 'lars' and positive_code:
++        raise ValueError(
++            ""Positive constraint not supported for 'lars' coding method.""
++        )",04e9420725706b6b2b8d1ae71db5b9c13cd844c5,130,85,4,2,True,18,2,20,98aefc1fdcfc53f5c8572b02c7f0c5bcba23e351,8a223a71d771e142e580199d372d950dbf79b08f
+scikit-learn/scikit-learn,15597,https://github.com/scikit-learn/scikit-learn/pull/15597,reuse,2019-11-13,[MRG] require scipy in setup,adrinjalali,duplicat,should this be made a common helper instead of duplicating code?,https://github.com/scikit-learn/scikit-learn/pull/15597#discussion_r345198447,setup.py,""".format(
++            SCIPY_MIN_VERSION)
++
++        if scipy_status['up_to_date'] is False:
++            if scipy_status['version']:
++                raise ImportError(""Your installation of ""
++                                  ""scipy {} is out-of-date.\n{}{}""
++                                  .format(numpy_status['version'],
++                                          numpy_req_str, instructions))
++            else:
++                raise ImportError(""scipy is not ""
++                                  ""installed.\n{}{}""
++                                  .format(scipy_req_str, instructions))
++",0897b99310ab7c8e76354e99e4f1b61a543fe444,32,29,1,1,False,4,12,16,ad57efa729c535cb18c82db5263d4c924e0ba12d,f1cb8e90e0194297a29f0adb40b6a69cf231cb04
+scikit-learn/scikit-learn,19271,https://github.com/scikit-learn/scikit-learn/pull/19271,reuse,2021-02-01,FIX nan bug in BaseLabelPropagation,ThuWangzw,duplicat,"Indeed, you just complete the fix of #15946 for `LabelPropagation`. To remove some code duplication, I would suggest extending the test introduced by #15946 using test parametrisation on the class. This can be done with something like: ```python @pytest.mark.parametrize(""label_propagation_class"",",https://github.com/scikit-learn/scikit-learn/pull/19271#issuecomment-768192533,,,bf402e6e86b6b2c0b33b7e7c72cadc61109cfbf3,16,4,3,1,True,4,6,10,38e6022e24e1a3c91f932fec87302ffc0610651b,ef0aa0fa3b4c7f70efdef3806d63ceab51b5ab88
+scikit-learn/scikit-learn,19365,https://github.com/scikit-learn/scikit-learn/pull/19365,reuse,2021-02-06,ENH Adds categories with missing values support to fetch_openml with as_frame=True,amy12xx,duplicate of,"@glemaitre this is a duplicate of the entry above it, which I guess you didn't notice. So this removal IMO is the correct thing to do (albeit not related to this PR)",https://github.com/scikit-learn/scikit-learn/pull/19365#discussion_r571402786,doc/whats_new/v0.24.rst,"@@ -234,10 +234,6 @@ Changelog
+   files downloaded or cached to ensure data integrity.
+   :pr:`14800` by :user:`Shashank Singh <shashanksingh28>` and `Joel Nothman`_.
+ 
+-- |Feature| :func:`datasets.fetch_openml` now validates md5checksum of arff",2125bc4bd668e3c36fd1fe881c99f0eb63abd012,28,5,8,1,True,10,1,11,23d8761615d0417eef5f52cc796518e44d41ca2a,2125bc4bd668e3c36fd1fe881c99f0eb63abd012
+scikit-learn/scikit-learn,20593,https://github.com/scikit-learn/scikit-learn/pull/20593,reuse,2022-03-13,MAINT Replace if_delegate_has_method with available_if in feature_selection,jackzyliu,duplicat,"I would say that as a first step, we could make all the checks local (at least this is easily readable at the cost of duplication). As a second step, we could think about factorizing once all the `available_if` are in the library. We can see what is best at this stage.",https://github.com/scikit-learn/scikit-learn/pull/20593#discussion_r683494833,sklearn/feature_selection/_rfe.py,"@@ -42,6 +42,20 @@ def _rfe_single_fit(rfe, estimator, X, y, train, test, scorer):
+     ).scores_
+ 
+ 
++def _estimator_has(attr):
++    """"""Check if the provided estimator has the attribute.
++
++    We check if the attribute is available in the fitted estimator first
++    (i.e. `self.estimator_`). If not available, we check the estimator
++    passed at initialization (i.e. `self.estimator`).
++    """"""
++    return lambda self: (
++        hasattr(self.estimator_, attr)
++        if hasattr(self, ""estimator_"")
++        else hasattr(self.estimator, attr)
++    )",c3ade2f8a8cb5a76bbcd88b1e72898aec9cedc44,34,8,2,2,False,5,3,8,3f66d6e968bd41bdfc7e26f0826678f69a002f1a,a50d1a1a7a619a52ff292af81d5758366d307eb0
+scikit-learn/scikit-learn,20987,https://github.com/scikit-learn/scikit-learn/pull/20987,reuse,2021-09-23,DOC ensure SpectralClustering passes numpydoc validation and improve references,lobpcg,duplicat,"It is fine to have duplication. Most of the time, our user will look at the documentation generated from the docstring and not the source. It means that if one uses the `discretize` function, it should be documented. Similarly, if one uses the `Sp",https://github.com/scikit-learn/scikit-learn/pull/20987#discussion_r709029962,sklearn/cluster/_spectral.py,"@@ -258,9 +258,14 @@ def spectral_clustering(
+       Ulrike von Luxburg
+       http://citeseerx.ist.psu.edu/viewdoc/summary?doi=10.1.1.165.9323
+ 
+-    - Multiclass spectral clustering, 2003",3893af28e8f7f5df14cf14115b756fd1b74ca478,64,50,2,1,True,9,4,13,98ef23dcf884fa81f904b491ee89ae86441e3173,10d95cc423289f588a1df4780dc3d5bc0e3485a3
+scikit-learn/scikit-learn,22280,https://github.com/scikit-learn/scikit-learn/pull/22280,reuse,2022-01-24,MAINT Do not compute distances for uniform weighting for knn-based estimators' predictions,jjerphan,already have,No need for a changelog entry for this small optim because we will already have an entry for the larger perf optimization of #22214 .,https://github.com/scikit-learn/scikit-learn/pull/22280#issuecomment-1020181839,,,4a3dd0ff61c424b0eede2024aedb1aa8e5a54fbb,22,3,2,2,False,0,2,2,cdf0d69c9c0cd2ce400dd79176ed4457a7730d67,4a3dd0ff61c424b0eede2024aedb1aa8e5a54fbb
+scikit-learn/scikit-learn,22856,https://github.com/scikit-learn/scikit-learn/pull/22856,reuse,2022-03-21,"API Config: change default display to ""diagram""",jeremiedbb,already have,deed. I forgot that the code of code snippets in the user guide is not executed by sphinx as done in the examples... We already have the problem on the dev site: https://scikit-learn.org/dev/modules/compose.html#visualizing-composite-estimators so this is not a problem of this PR.,https://github.com/scikit-learn/scikit-learn/pull/22856#issuecomment-1073982709,,,c908ac5ab32a572170e0ca3357eb57a78faff745,51,78,13,1,True,2,6,8,7414a7c4c59d1c8695f9c96caef7a8f6874b4a86,c908ac5ab32a572170e0ca3357eb57a78faff745
+scikit-learn/scikit-learn,22899,https://github.com/scikit-learn/scikit-learn/pull/22899,reuse,2022-03-22,Fix Ridge sparse + sample_weight + intercept,jeremiedbb,duplicat,t_intercept_sparse` (and maybe also `test_ridge_fit_intercept_sparse`)? (take the best part of both). It seems kind of duplicate.,https://github.com/scikit-learn/scikit-learn/pull/22899#discussion_r830464977,sklearn/linear_model/tests/test_ridge.py,"@@ -1823,3 +1823,33 @@ def test_ridgecv_normalize_deprecated(Estimator):
+         FutureWarning, match=r""Set parameter alphas to: original_alphas \* n_samples""
+     ):
+         estimator.fit(X, y)
++
++
++@pytest.mark.parametrize(""solver"", [""sparse_cg"", ""sag""])
++def test_ridge_sample_weights_dense_sparse(solver, global_random_seed):",6b56daf906a8eb3274ec4a2f7f879dd9fda9e2e6,90,53,6,3,True,11,2,13,02f8ffd55f91fb2c43ac5c5df1a99ca0dff172e7,70be11beaa26ac4a04355eba16da282da7d02faf
+scikit-learn/scikit-learn,24136,https://github.com/scikit-learn/scikit-learn/pull/24136,reuse,2022-09-27,FIX behaviour of `check_estimator` with `require_positive` tags of a regressor,rprkh,already have,"Hi @rprkh , you already have one approval. Do you mind synchronizing with upstream? This will update the checks and make the second review easier. Thanks for your work so far!",https://github.com/scikit-learn/scikit-learn/pull/24136#issuecomment-1247296512,,,7de414a1f728c523309309097d94a0de770bf6a3,22,2,2,1,True,6,7,13,189d2f304c73a40dd2d2d38f6203ff9d41cbd48e,9cb71008c6d06b7aa503bdfe4337061c298c5caa
+scikit-learn/scikit-learn,24350,https://github.com/scikit-learn/scikit-learn/pull/24350,reuse,2022-09-09,ENH Add dtype preservation to SkewedChi2Sampler,rprkh,same as the,"Thanks for the PR @rprkh. The meaning of ""preserving"" dtype is not only for the output dtype to be the same as the input dtype but more importantly for all computations in between to not require any conversion. Here it means that the ``uniform`` array should be created with the same dtype as X for instance. Also, can you run a qu",https://github.com/scikit-learn/scikit-learn/pull/24350#issuecomment-1237064960,,,03a3df748ed4b2f3beabbc76d3fc7fcb9200cbd9,47,0,3,1,True,13,10,23,fd0e8158a408b79bc7c43b4de7891640bb0fe809,ecc8376c599294bef8cac7b2df177d23ca9aa3dd
+scikit-learn/scikit-learn,24395,https://github.com/scikit-learn/scikit-learn/pull/24395,reuse,2022-10-03,MAINT Clean deprecation for 1.2: get_feature_names,jeremiedbb,already have,I would also rather not introduce any new warning. We already have too many.,https://github.com/scikit-learn/scikit-learn/pull/24395#discussion_r970752901,doc/glossary.rst,"@@ -1247,14 +1246,6 @@ Methods
+         (i.e. training and test data together) before further modelling, as
+         this results in :term:`data leakage`.
+ 
+-    ``get_feature_names``",096b4629e6e95300f6b5aa02c4d12168eb96e8cc,107,615,18,6,True,5,1,6,d2c713bce62974f7a17aab3e556d0bf14eebab3c,b085ecc82b07095a6404be799e823f74c9675037
+scikit-learn/scikit-learn,13365,https://github.com/scikit-learn/scikit-learn/pull/13365,smell,2019-03-03,[MRG] Warns when reference can not be found.,thomasjpfan,quadratic,lgorithm='lasso_cd' /home/circleci/project/sklearn/discriminant_analysis.py:docstring of sklearn.discriminant_analysis.QuadraticDiscriminantAnalysis:25: WARNING: 'any' reference target not found: self.covariance_ /home/circleci/project/sklearn/dummy.py:docstring of sklearn.dummy.DummyClassifier:30: WARNING: 'any' reference target not found: np.r,https://github.com/scikit-learn/scikit-learn/pull/13365#issuecomment-468859461,,,77ea86c52f9c74c28937bd6c701bdec4d0bd0c31,18,3,2,1,False,2,9,11,b73a51bcda362d94d8907915a382a8eb403554c8,784c7ac6ac9490f1430c41761e2b3d4c0681a9fb
+scikit-learn/scikit-learn,18581,https://github.com/scikit-learn/scikit-learn/pull/18581,smell,2020-11-30,ENH Sets assume_finite in  _non_negative_factorization ,thomasjpfan,o(n,"I like it too ! It might be sufficient. The finiteness check is the longest since it goes through all the data (O(n)), while all the rest is O(1) if there is no change of type/dtype/copy.",https://github.com/scikit-learn/scikit-learn/pull/18581#issuecomment-731433745,,,ee784558de5b9833c69c11cd28386da16fe51ba6,19,19,1,1,False,2,10,12,9d394c2daab6df104cef115ebd69f802cc327347,34c6061e51680e7ba1f4761fc4b2f7c4481f533a
+scikit-learn/scikit-learn,18612,https://github.com/scikit-learn/scikit-learn/pull/18612,smell,2020-10-14,"FIX sort radius neighbors results when sort_results=True and algorithm=""brute""",TomDLT,vectorize,"Is there a way we can vectorize this operation instead of looping over all samples? IIUC the arrays in `neigh_dist` may be of different lengths so that might not be possible, but I'm not familiar enough to confirm",https://github.com/scikit-learn/scikit-learn/pull/18612#discussion_r504014781,sklearn/neighbors/_base.py,"@@ -1021,6 +1021,16 @@ class from an array representing our data set and ask who's
+                 neigh_ind_list = sum(chunked_results, [])
+                 results = _to_object_array(neigh_ind_list)
+ 
++            if sort_results:
++                if not return_distance:
++                    raise ValueError(""return_distance must be True ""
++                                     ""if sort_results is True."")
++                for ii in range(len(neigh_dist)):",546535e727fa95940e7577bb8ef82eebdc1d1d3e,58,7,3,1,True,12,0,12,fdb9233f72caec3d3f9720e073b2efdc141847ff,43ca348912c144b71d86cc8b88c4a744f6965ee9
+scikit-learn/scikit-learn,20723,https://github.com/scikit-learn/scikit-learn/pull/20723,smell,2021-08-31,MNT use check_scalar to validate scalar in AffinityPropagation,glemaitre,in a loop,"with separate `check_scalar` for each attribute, it'd read better. Any reason you put them in a dict and then call them in a loop?",https://github.com/scikit-learn/scikit-learn/pull/20723#discussion_r685914699,sklearn/cluster/_affinity_propagation.py,"self.affinity)
+             )
+ 
++        scalars_checks = {
++            ""damping"": {
++                ""target_type"": numbers.Real,
++                ""min_val"": 0.5,
++                ""max_val"": 1,
++                ""strictly_less_max_val"": True,
++            },
++            ""max_iter"": {""target_type"": numbers.Integral, ""min_val"": 1},
++            ""convergence_iter"": {""target_type"": numbers.Integral, ""min_val"": 1},
++        }
++        for scalar_name in scalars_checks:
++            check_scalar(
++                getattr(self, scalar_name), scalar_name, **scalars_checks[scalar_name]
++            )",36f8c7ce50dfa3c64b41c2dc58aa94d4177906f9,147,36,5,2,True,17,0,17,4b8cd880397f279200b8faf9c75df13801cb45b7,767cf7c318dcd85d58ebb26467bbce3cc7d692d4
+scikit-learn/scikit-learn,21735,https://github.com/scikit-learn/scikit-learn/pull/21735,smell,2021-11-25,Make algorithm='auto' default to using 'full' instead of 'elkan',ageron,slow,"```suggestion often slower, uses more memory and its results are identical, hence the change. ```",https://github.com/scikit-learn/scikit-learn/pull/21735#discussion_r754129723,doc/whats_new/v1.1.rst," clusters samples in the embedding space as an alternative to the existing
+   `'kmeans'` and `'discrete'` methods.
+   See :func:`cluster.spectral_clustering` for more details.
+   :pr:`21148` by :user:`Andrew Knyazev <lobpcg>`
+ 
++- |Efficiency| In :class:`cluster.KMeans`, the default ``algorithm`` is now
++  ``""lloyd""`` which is the full classical EM-style algorithm. Both ``""auto""``
++  and ``""full""`` are deprecated, and they are aliases for ``""lloyd""``. The
++  previous default was ``""auto""`` which used Elkan's algorithm, but it is
++  often slower, and its results are identical, hence the change.",0bc9e7812be8343ea71b972179e04c8b340b9890,95,44,5,3,True,7,4,11,248f6cf3156f6a48333b4074aac4c12e2c15155c,8190031dea6d4805aa0d98488d0b0bee158e50fb
+scikit-learn/scikit-learn,22014,https://github.com/scikit-learn/scikit-learn/pull/22014,smell,2022-09-16,ENH Adds class_weight to HistGradientBoostingClassifier,thomasjpfan,performance,"en just logreg, and each time it seemed that `class_weight=""balanced""` would either change nothing or actually hurt the performance, both for threshold-insensitive metrics (e.g. ROC AUC and average precision), log loss, Brier score or threshold sensitive metrics balanced accuracy, f1 score, matthrews corrcoef and others. So while I am not opposed",https://github.com/scikit-learn/scikit-learn/pull/22014#issuecomment-1013265719,,,cfef17d61fc43bb5cbf656a6f4c6a31034200d55,94,1,3,1,True,0,1,1,ad91259f20529306efe445f5a1da4dccc8c81b5a,bb48881d2bf06a08e98b82b526eecd30e64b4f8c
+scikit-learn/scikit-learn,22059,https://github.com/scikit-learn/scikit-learn/pull/22059,smell,2022-06-07,FIX Fix gram validation: dtype-aware tolerance,MalteKurz,slow,no objection to use sklearn.utils._testing.assert_allclose sorry for the slow reaction time @MalteKurz,https://github.com/scikit-learn/scikit-learn/pull/22059#issuecomment-1140276138,,,45adbeac08ff341652120fe2e1d5790ce9af7918,39,3,3,1,True,6,6,12,75c58c39eb9eed15ba6c96c52b6adcd95f045294,c0da61ba0808e744b51a79a793167908d0952741
+scikit-learn/scikit-learn,22412,https://github.com/scikit-learn/scikit-learn/pull/22412,smell,2022-02-10,ENH reduce memory usage in `make_blobs`,MaxwellLZH,performance,"I think that we can avoid adding a test to check the performance. Instead, @ogrisel and @jeremiedbb think that we could add such utility in the ASV benchmark suite. @MaxwellLZH Could you still add an entry in the changelog to acknowledge the no-copy behaviour.",https://github.com/scikit-learn/scikit-learn/pull/22412#issuecomment-1033623749,,,eaf3d61e99e26ac6ec2a59109b6a23a953ddfd6d,15,13,2,1,False,8,4,12,5900e2660f4293b52ea57bf830e7bff312779036,c5686f617169e7a6a85674cac29525269d8a8fef
+scikit-learn/scikit-learn,22525,https://github.com/scikit-learn/scikit-learn/pull/22525,smell,2022-02-27,ENH Bayesian regression model `dtype` consistency,Micky774,slow,"can lead to many extra copies internally which is something we want to avoid because it increases the memory usage and slows down the execution. Here is an example in _update_sigma: ```py def _update_sigma(self, X, alpha_, lambda_, keep_lambda): # See slides as referenced in the docstring note # this function is used when n_sampl",https://github.com/scikit-learn/scikit-learn/pull/22525#issuecomment-1048600972,,,8c6ae72475b3f05b55403cb0ed5bcbf41d0e16dd,40,6,3,1,True,15,7,22,bdd5a9e19d09b027b2a4e6ccce2930cf6ded2f14,a5921c0488fee6f59bf1acc5536858c88b679710
+scikit-learn/scikit-learn,22899,https://github.com/scikit-learn/scikit-learn/pull/22899,smell,2022-03-22,Fix Ridge sparse + sample_weight + intercept,jeremiedbb,slow,"Does this slow down the case with no sample weights? An that case, we might consider a case distinction. I guess it is negligible.",https://github.com/scikit-learn/scikit-learn/pull/22899#discussion_r830827267,sklearn/linear_model/_ridge.py,"tol=1e-3,
++    verbose=0,
++    X_offset=None,
++    X_scale=None,
++    sample_weight_sqrt=None,
+ ):
++    if sample_weight_sqrt is None:
++        sample_weight_sqrt = np.ones(X.shape[0], dtype=X.dtype)
++
+     def _get_rescaled_operator(X):
+ 
+         X_offset_scale = X_offset / X_scale
+ 
+         def matvec(b):
+-            return X.dot(b) - b.dot(X_offset_scale)
++            return X.dot(b) - sample_weight_sqrt * b.dot(X_offset_scale)
+ 
+         def rmatvec(b):
+-            return X.T.dot(b) - X_offset_scale * np.sum(b)
++            return X.T.dot(b) - X_offset_scale * b.dot(sample_weight_sqrt)",f407a067f54d436b4848cd19ce8b462fc80fa516,90,53,6,3,True,11,2,13,02f8ffd55f91fb2c43ac5c5df1a99ca0dff172e7,70be11beaa26ac4a04355eba16da282da7d02faf
+scikit-learn/scikit-learn,22968,https://github.com/scikit-learn/scikit-learn/pull/22968,smell,2022-05-02,ENH Added `dtype` preservation to `Birch`,Micky774,performance,@Micky774 can you do a quick benchmark to compare your PR and main on float32 to be sure it does not introduce any performance regression ?,https://github.com/scikit-learn/scikit-learn/pull/22968#issuecomment-1080684845,,,7b683f25c453f38ed7709d62423cb97590bd096e,41,6,3,1,True,16,4,20,af5b6a100357852f4c3040ff2cb06cb8691023e9,81028c9031fb8b63ec9dcef1d37036ace23f21f2
+scikit-learn/scikit-learn,23252,https://github.com/scikit-learn/scikit-learn/pull/23252,smell,2022-05-04,ENH  Optimize runtime for IsolationForest,MaxwellLZH,slow,I think we can keep `max_features`. Maybe we can just add a note to explain that it's much slower to enable feature subsampling on sparse training data for this model.,https://github.com/scikit-learn/scikit-learn/pull/23252#issuecomment-1115923587,,,036bed9a72885726ad6dd92a27e9b16a26120f87,28,5,4,2,True,6,13,19,93359b645d1c47e3c787821cf276ec486451dcac,50165ead481913fa4203f29cf8f339b0c0b6d1a5
+scikit-learn/scikit-learn,23990,https://github.com/scikit-learn/scikit-learn/pull/23990,smell,2022-08-01,FIX Support F-contiguous arrays for `PairwiseDistancesReductions`-backed estimators,jjerphan,slow,"nd for F-contiguous arrays. In this case, there is no extra memory consumption compared to 1.0, but we end up using the slower backend.",https://github.com/scikit-learn/scikit-learn/pull/23990#issuecomment-1197374283,,,83e33e0a0d65659235506454036a44b878a304cc,81,0,5,1,True,5,10,15,c27ad05dcc163623079e2ba7fe000f9ad759678a,af0ea2c1b287efd6de6620ba592d82bb8d0a49f5
+scikit-learn/scikit-learn,24350,https://github.com/scikit-learn/scikit-learn/pull/24350,smell,2022-09-09,ENH Add dtype preservation to SkewedChi2Sampler,rprkh,performance,"should be created with the same dtype as X for instance. Also, can you run a quick benchmark to show that there's no performance drop. We expect that running on float32 would be faster, or at the same speed at worst, that running on float64.",https://github.com/scikit-learn/scikit-learn/pull/24350#issuecomment-1237064960,,,03a3df748ed4b2f3beabbc76d3fc7fcb9200cbd9,47,0,3,1,True,13,10,23,fd0e8158a408b79bc7c43b4de7891640bb0fe809,ecc8376c599294bef8cac7b2df177d23ca9aa3dd
+scikit-learn/scikit-learn,14336,https://github.com/scikit-learn/scikit-learn/pull/14336,tests,2019-07-30,[MRG+1] Fix KernelCenterer requires square input but doesn't error on non-square,gdex1,add a test,"It's kinda expected than when you add a test to the common tests, it detects issues with a couple of estimators that we were not detecting before. For the ones which are easy to fix, you can fix them, and for the rest, apply the changes you have done here, and we'",https://github.com/scikit-learn/scikit-learn/pull/14336#issuecomment-513113722,,,2e8a65cb94ba9132ba35690ada81c95c18aa362d,65,7,5,4,False,13,11,24,3896d4903b651cbd1f4b45e8f440d308858681b4,f602c4ade471095791ae0d2468448420faff973a
+scikit-learn/scikit-learn,14450,https://github.com/scikit-learn/scikit-learn/pull/14450,tests,2019-08-22,Fixes #13609: Fixing y_score initialization so that it is not initialized as a column …,camilaagw,regression test,"Usually a non regression test doesn't need reference to an external package. It basically needs to be a test that failed before the patch and passes now, slowing that the patch effectively fixes some broken behaviour. It usually looks very similar t",https://github.com/scikit-learn/scikit-learn/pull/14450#issuecomment-520184623,,,fb906b33f75e84dcb1f1aba3fb6cb98349c0afee,54,2,3,1,True,5,7,12,68044b061d7abc0c16f632890939438033306161,795e37dccf8b6cc8b7a0e36f65bcdc2c2c6db41b
+scikit-learn/scikit-learn,15707,https://github.com/scikit-learn/scikit-learn/pull/15707,tests,2019-12-08,[MRG] Allow two-element tuple as n_samples argument in make_circles and make_moons,mjmikulski,unit test,"> Sure, I am just wondering why this was not caught by the tests (expected strings in unit tests were changed). because match only checks whether these text is in the original message.",https://github.com/scikit-learn/scikit-learn/pull/15707#issuecomment-562922689,,,2214e2879251c48cba4593d63390c419fad48536,68,9,3,1,True,17,4,21,0fa54e5d7f5551c78cc067b91788d4d3e64244b8,48f333f5abc5ad095458194215978e593d865514
+scikit-learn/scikit-learn,16182,https://github.com/scikit-learn/scikit-learn/pull/16182,tests,2020-01-28,BUG max_depth=1 should be decision stump in HistGradientBoosti…,SanthoshBala18,needs a test,"the original definition in mind. For example, the `node_struct` stores depth based on the original definition. This needs a test to assert that the predictors are stumps with max_depth==1.",https://github.com/scikit-learn/scikit-learn/pull/16182#issuecomment-577756121,,,08a043c467998e740399ba88e694500d97c91121,27,10,5,2,True,6,7,13,fd12d5684ad224ad7760374b1dcca2821c644feb,06aab9ed62be6b506d5b4115532ad2642eb8481b
+scikit-learn/scikit-learn,17935,https://github.com/scikit-learn/scikit-learn/pull/17935,tests,2020-08-24,[MRG] FIX fix hinge_loss when labels are provided and not inferred from y_true,Ultramann,needs a test,This also needs a test,https://github.com/scikit-learn/scikit-learn/pull/17935#issuecomment-659467740,,,1150ee233e0ca606794d200456bd1314c9cea013,37,3,3,1,True,3,4,7,c6579afdc474e75686a1797d1322cfc3d6aaa601,9301c00a73f1bb1ffacb6ddc37b6a2f1861af352
+scikit-learn/scikit-learn,19732,https://github.com/scikit-learn/scikit-learn/pull/19732,tests,2021-04-20,FIX a bug in KernelPCA.inverse_transform,kstoneriv3,unit test,"ation. So for this PR, we can revert the change that was adding the `alpha` in the diagonal of `K`. We need a better unit test though. One thing could be to check the reconstruction error by measuring the Frobenius norm between the original matrix and the reconstruction and check that it is close enough, and this with kernel. In addition, we",https://github.com/scikit-learn/scikit-learn/pull/19732#issuecomment-819873923,,,4def5c2a7079deb881b0b747b19e8fd85bbe6e02,19,12,3,1,True,3,19,22,90b399269b83531191f5f244d48182014acbc4f5,67c3c55ff1f5df99b9add9fd58c6c79ff40283c5
+scikit-learn/scikit-learn,19788,https://github.com/scikit-learn/scikit-learn/pull/19788,tests,2021-04-14,[MRG] Fix near constant feature detection in StandardScaler and linear models,jeremiedbb,non-regression test,Can you please add a new non-regression test derived from #19726?,https://github.com/scikit-learn/scikit-learn/pull/19788#issuecomment-810425716,,,78346155b01dd66d5430a3ffd04254635d60fa84,166,57,6,3,True,12,11,23,57d3668f2a1fea69dafc2e68208576a56812cd45,b0f590c43f281fd7ef16e9c31014aaddca80cc5a
+scikit-learn/scikit-learn,19847,https://github.com/scikit-learn/scikit-learn/pull/19847,tests,2021-04-12,FIX BaseSuccessiveHalving class groups support,xiaoyuchai,non-regression test,"Thanks @xiaoyuchai , this looks good. Would you mind adding a new non-regression test called `test_groups_support`, something very similar to https://github.com/scikit-learn/scikit-learn/blob/d88ffabb6fe3152902c213133eb2bdd0a3c9ab86/sklearn/model_selection/tests/test_search.py#L304 which would test both",https://github.com/scikit-learn/scikit-learn/pull/19847#issuecomment-816465972,,,c3c73265767ce0d0c6eba07f5d3c0b903e6dd5b4,42,1,3,1,True,4,4,8,246795f214ec31874aa1d1e89c90c7007ab60642,406137e23f252018a2d8773378d84e410e8443fa
+scikit-learn/scikit-learn,20030,https://github.com/scikit-learn/scikit-learn/pull/20030,tests,2021-05-25,Fix GaussianMixture UnboundLocalError,tliu68,regression test,Hi again @tliu68 Thanks for the PR! Could you add a regression test for #18216 failing on main but passing on this branch?,https://github.com/scikit-learn/scikit-learn/pull/20030#issuecomment-831380936,,,969bdbcc412df86935e642fea7b104918272f2c3,57,3,3,1,True,8,4,12,aa898de885ed4861a03e4f79b28f92f70914643d,284d20ab9d598dd8c22166584740f5687f866a50
+scikit-learn/scikit-learn,20312,https://github.com/scikit-learn/scikit-learn/pull/20312,tests,2021-07-22,FIX avoid overflow in adjusted_rand_score with large amount data,divyanshudeoli,non-regression test,You might want to merge `main` into your branch. We will also need a non-regression test for this matter to ensure that what we intend to correct is working as expected.,https://github.com/scikit-learn/scikit-learn/pull/20312#issuecomment-866971297,,,9703000968c6b9f05b6d2bb446ccf21d2e889285,20,0,3,1,True,0,5,5,460c9610acb2163ca1e56b042b7b84b9352248f8,e06b60fb4cd77e0ed4395c0afad175293f24d20f
+scikit-learn/scikit-learn,20415,https://github.com/scikit-learn/scikit-learn/pull/20415,tests,2022-08-15,FIX adaboost return nan in feature importance,MaxwellLZH,non-regression test,"_weights(): """"""Check that we don't create NaN feature importance with numerically instable inputs. Non-regression test for: https://github.com/scikit-learn/scikit-learn/issues/20320 """""" ```",https://github.com/scikit-learn/scikit-learn/pull/20415#discussion_r874579188,sklearn/ensemble/tests/test_weight_boosting.py,"@@ -614,3 +614,16 @@ def test_adaboost_negative_weight_error(model, X, y):
+     err_msg = ""Negative values in data passed to `sample_weight`""
+     with pytest.raises(ValueError, match=err_msg):
+         model.fit(X, y, sample_weight=sample_weight)
++
++
++def test_adaboost_numerically_stable_feature_importance_with_small_weights():",807fd1e9b59e61e3cfb0969caf6c7d168dadbe24,35,2,3,1,True,13,7,20,f9fd3b535af47986d20ad1ad06be35de10221cc2,ef72de486ac6c5dc4fdf36f75969714e107b664b
+scikit-learn/scikit-learn,20515,https://github.com/scikit-learn/scikit-learn/pull/20515,tests,2021-07-21,FIX avoid `isotonic_regression` to modify `sample_weight` in-place,allefeld,non-regression test,"Could you add a non-regression test as well. I think that putting the minimal reproducible example given in the issue is enough here. Please add an entry to the changelog at `doc/whats_new/v1.0.rst`. Like the other entries there, please reference this",https://github.com/scikit-learn/scikit-learn/pull/20515#issuecomment-878900810,,,0dd7d6723637e31afee3160aa78235384ef2efde,24,1,3,1,True,7,7,14,1bd007fe0d5758d48829ea339f06206261fb2477,641c40ac8fd38d9c6b946e9e7398ed496d3b962f
+scikit-learn/scikit-learn,20597,https://github.com/scikit-learn/scikit-learn/pull/20597,tests,2021-07-27,FIX Fixes AgglomerativeClustering with precomputed affinity,thomasjpfan,non-regression test,"```suggestion greater than 1. Non-regression test for #16151. """""" ```",https://github.com/scikit-learn/scikit-learn/pull/20597#discussion_r677179949,sklearn/cluster/tests/test_hierarchical.py,"@@ -870,3 +871,41 @@ def test_invalid_shape_precomputed_dist_matrix():
+     X = rng.rand(5, 3)
+     with pytest.raises(ValueError, match=""Distance matrix should be square, ""):
+         AgglomerativeClustering(affinity=""precomputed"", linkage=""complete"").fit(X)
++
++
++def test_precomputed_connectivity_affinity_with_2_connected_components():
++    """"""Check that connecting componenets works when connectivity and
++    affinity are both precomputed and the number of connected components is
++    greater than 1. Non-regression test for #16151.""""""",d47289b3c884e06bfd148415da6dd7f87bdd4b86,49,1,3,1,True,4,0,4,238451d55ed57c3d16bc42f6a74f5f0126a7c700,5b98f7b7ac9c732c8ff200e6f8fd56cd54c4e081
+scikit-learn/scikit-learn,20904,https://github.com/scikit-learn/scikit-learn/pull/20904,tests,2021-09-03,Fixing integer overflow on 32-bit architectures.,t-jakubek,add a test,Also please add a test for overflow in this function directly (e.g. the example you put in the issue) under `sklearn/utils/tests/test_utils.py`,https://github.com/scikit-learn/scikit-learn/pull/20904#discussion_r700185269,sklearn/utils/__init__.py,"@@ -1056,7 +1056,7 @@ def _approximate_mode(class_counts, n_draws, rng):
+     rng = check_random_state(rng)
+     # this computes a bad approximation to the mode of the
+     # multivariate hypergeometric given by class_counts and n_draws
+-    continuous = n_draws * class_counts / class_counts.sum()
++    continuous = class_counts / class_counts.sum() * n_draws",43f42a97d84cba0b7ddaa8f67937285114e559a9,45,1,4,1,True,7,0,7,baa8fb8d56464cb591ec36f91b8f1b2b5b6688a1,862940fa5494b840a4f45025a92763882803585a
+scikit-learn/scikit-learn,21093,https://github.com/scikit-learn/scikit-learn/pull/21093,tests,2021-09-24,FIX improve error message for large sparse matrix input in LogisticRegression,TomDLT,non-regression test,Can you add the github issue and mentioned that this is a non-regression test,https://github.com/scikit-learn/scikit-learn/pull/21093#discussion_r712514067,sklearn/linear_model/tests/test_logistic.py,"@@ -2237,3 +2237,21 @@ def test_sample_weight_not_modified(multi_class, class_weight):
+     )
+     clf.fit(X, y, sample_weight=W)
+     assert_allclose(expected, W)
++
++
++@pytest.mark.parametrize(""solver"", [""liblinear"", ""lbfgs"", ""newton-cg"", ""sag"", ""saga""])
++def test_large_sparse_matrix(solver):
++    # Solvers either accept large sparse matrices, or raise helpful error.",391742c23e50e64fef6d6ce8e5aaba8c8142874c,29,3,3,1,True,1,0,1,6c566da8c99b4908a549aeb659cd4b1124bc2448,8463ab88920a1eab17631b54ab93ee43098b3fba
+scikit-learn/scikit-learn,21145,https://github.com/scikit-learn/scikit-learn/pull/21145,tests,2021-10-20,FIX avoid scalar/array boolean operation in _IffHasAttrDescriptor,Zahlii,non-regression test,Thanks for the PR. Could you please try to contribute an new non-regression test for this?,https://github.com/scikit-learn/scikit-learn/pull/21145#issuecomment-926815007,,,d09b724f3155e516e10d4d4f9d91d0a050e362a3,27,1,3,1,True,0,7,7,1bf13d567d3cd74854aa8343fd25b61dd768bb85,1df231a97bd1bb1de8fd6735c13b759d8b92b0b4
+scikit-learn/scikit-learn,21389,https://github.com/scikit-learn/scikit-learn/pull/21389,tests,2021-10-23,FIX delete feature_names_in_ when refitting on a ndarray,jeremiedbb,non-regression test,"I think so, maybe with a small non-regression test.",https://github.com/scikit-learn/scikit-learn/pull/21389#discussion_r734952946,sklearn/decomposition/_lda.py,"@@ -902,4 +882,8 @@ def perplexity(self, X, sub_sampling=False):
+         score : float
+             Perplexity score.
+         """"""
++        check_is_fitted(self)
++        X = self._check_non_neg_array(
++            X, reset_n_features=True, whom=""LatentDirichletAllocation.perplexity""",9e400c8694688750f456b234a3c20ed581c349a9,65,70,11,8,True,10,6,16,d5db19718a6bf2b6e10fd7a7d706d6131e80f84b,fc443094224eb83fc62b8a2d2cde2fc0c4ba3ca5
+scikit-learn/scikit-learn,21871,https://github.com/scikit-learn/scikit-learn/pull/21871,tests,2021-12-21,FIX Fixes OneVsRestClassifier predict_proba for constant int targets,thomasjpfan,non-regression test,"```suggestion Non-regression test for #21869 """""" ```",https://github.com/scikit-learn/scikit-learn/pull/21871#discussion_r762426525,sklearn/tests/test_multiclass.py,"@@ -971,3 +971,18 @@ def test_support_missing_values(MultiClassClassifier):
+     lr = make_pipeline(SimpleImputer(), LogisticRegression(random_state=rng))
+ 
+     MultiClassClassifier(lr).fit(X, y).score(X, y)
++
++
++def test_constant_int_target():
++    """"""Check that constant y target does not raise.
++
++    Non-regression test for #21869""""""",de0dab19dd9d401d3c921a71b8a5cd07108c9be3,34,8,4,1,True,7,3,10,b91ecdcbc5724401773bb63049564e6467f2695e,a0dea7898a65ab828cce9b2473d0ebb5ea9cf465
+scikit-learn/scikit-learn,22002,https://github.com/scikit-learn/scikit-learn/pull/22002,tests,2021-12-30,"ENH Preserving dtype for np.float32 in *DictionaryLearning, SparseCoder and orthogonal_mp_gram",takoika,unit test,"and OrthogonalMatchingPursuitCV will be affected by the change as well as orthogonal_mp_gram. It would be better to add unit tests to confirm relations between input dtype and output dtype for them. But in terms of making PR small and simple, it would be better to address _omp.py at next PR. Any thoughts? I would advise making it in a separate",https://github.com/scikit-learn/scikit-learn/pull/22002#issuecomment-1000207424,,,6ce4ecc22b155fefa08a10f361c9099cd89a5fb8,265,7,5,2,True,13,6,19,78a941aa73756595baff805fd390a0590262ac97,8f4c61b84659bb2f485c14b320713549fe3e0f78
+scikit-learn/scikit-learn,22050,https://github.com/scikit-learn/scikit-learn/pull/22050,tests,2021-12-23,FIX Corrects negative gradient of AdaBoost loss in GBDT,glemaitre,regression test,"I would prefer to compare the gradients to numerical differentiation for all losses, but this certainly is a regression test for this bug.",https://github.com/scikit-learn/scikit-learn/pull/22050#discussion_r774069387,sklearn/ensemble/tests/test_gradient_boosting_loss_functions.py,"@@ -320,3 +320,18 @@ def test_lad_equals_quantiles(seed, alpha):
+         y_true, raw_predictions, sample_weight=weights, alpha=alpha
+     )
+     assert pbl_weighted_loss == approx(ql_weighted_loss)
++
++
++def test_exponential_loss():",77125cf6dbe838f2ca402dd87a0d7beed9968d0a,22,2,3,1,True,6,2,8,eac2fda1841880ef9d152a63b87875b63c9e03c4,cbe85ee9346402019ae2fdfd2b704ceaa98b47ed
+scikit-learn/scikit-learn,22063,https://github.com/scikit-learn/scikit-learn/pull/22063,tests,2022-06-01,FIX SimpleImputer uses dtype seen in fit for transform,thomasjpfan,unit test,This is a good point. Do you think that we should add a unit test regarding the bitness preservation since we try to have it in other cases?,https://github.com/scikit-learn/scikit-learn/pull/22063#discussion_r885296284,sklearn/impute/_base.py,"@@ -278,6 +278,10 @@ def _validate_input(self, X, in_fit):
+         else:
+             dtype = FLOAT_DTYPES
+ 
++        if not in_fit and self._fit_dtype.kind == ""O"":
++            # Use object dtype if fitted on object dtypes
++            dtype = self._fit_dtype",b68b1b9b96196f917c8ad4b445026bef7944dc9a,40,0,3,1,True,6,1,7,3da9643d1b5ffe58e2988e777c09d8539d9f6fd5,776d3d260331eda1429e3a5b1795829eb5567237
+scikit-learn/scikit-learn,22212,https://github.com/scikit-learn/scikit-learn/pull/22212,tests,2022-01-20,ENH Adds get_feature_names_out to neighbors module,Micky774,test for this,We can not set private attributes in `__init__`. We have common checks that test for this behavior. You can see if on the [CI failing tests](https://dev.azure.com/scikit-learn/scikit-learn/_build/results?buildId=36979&view=logs&j=dde5042c-7464-5d47-9507-31bdd2ee0a3a&t=4bd2dad8-62b3-5bf9-08a5-a9880c530c94).,https://github.com/scikit-learn/scikit-learn/pull/22212#discussion_r785145630,sklearn/neighbors/_nca.py,"@@ -195,6 +197,7 @@ def __init__(
+         self.callback = callback
+         self.verbose = verbose
+         self.random_state = random_state
++        self._n_features_out = n_components",0b24bccf72903820752c278ca92f70f48423fe90,65,8,6,2,True,15,5,20,9816b35d05e139f1fcc1a5541a1398205280d75a,0b8acdcb9992e1bf89c56532dd439bc8c2470702
+scikit-learn/scikit-learn,22318,https://github.com/scikit-learn/scikit-learn/pull/22318,tests,2022-02-15,FIX skip tests when estimator has non_deterministic tag,MaxwellLZH,regression test,Thanks for the PR. This also needs a regression test to test the change.,https://github.com/scikit-learn/scikit-learn/pull/22318#issuecomment-1024241118,,,8163c0438be0316702709d22835d06253d9b68b2,27,2,3,1,True,2,1,3,c721fa56730068048fd103a0ef68dd8d8a6e181b,632257202958182ae701f3341ad15b624e8d89bb
+scikit-learn/scikit-learn,22595,https://github.com/scikit-learn/scikit-learn/pull/22595,tests,2022-03-07,FIX Support extra class_weights in compute_class_weight,thomasjpfan,non-regression test,"```suggestion """"""Check that class_weight can contain more labels than in y. Non-regression test for #22413"""""" ```",https://github.com/scikit-learn/scikit-learn/pull/22595#discussion_r819596941,sklearn/utils/tests/test_class_weight.py,"@@ -261,3 +271,13 @@ def test_compute_sample_weight_more_than_32():
+     indices = np.arange(50)  # use subsampling
+     weight = compute_sample_weight(""balanced"", y, indices=indices)
+     assert_array_almost_equal(weight, np.ones(y.shape[0]))
++
++
++def test_class_weight_does_not_contains_more_classses():
++    """"""Check that class_weight can contain more labels then in y.
++
++    Non-regression test for #22413""""""",6773baec3699327df1a06b50786a673179e72338,47,15,3,1,True,3,2,5,578e3eb532d8ab5396d5579ff06e46604818e750,2b0ac85c39927611d9b7639413fd975ed0e24baa
+scikit-learn/scikit-learn,22735,https://github.com/scikit-learn/scikit-learn/pull/22735,tests,2022-03-09,FIX Fixes KBinsDiscretizer for encode=ordinal,thomasjpfan,non-regression test,"```suggestion """"""Check get_feature_names_out for different settings. Non-regression test for #22731 """""" ```",https://github.com/scikit-learn/scikit-learn/pull/22735#discussion_r822449257,sklearn/preprocessing/tests/test_discretization.py,"hot"",
++            [
++                f""feat{col_id}_{float(bin_id)}""
++                for col_id in range(3)
++                for bin_id in range(4)
++            ],
++        ),
++        (
++            ""onehot-dense"",
++            [
++                f""feat{col_id}_{float(bin_id)}""
++                for col_id in range(3)
++                for bin_id in range(4)
++            ],
++        ),
++        (""ordinal"", [f""feat{col_id}"" for col_id in range(3)]),
++    ],
++)
++def test_kbinsdiscrtizer_get_feature_names_out(encode, expected_names):
++    """"""Check get_feature_names_out for different settings.""""""",1330fdf48ce6e50d673b325b7a307c76b40891dd,46,1,3,1,True,2,0,2,692225dd2cb5058bc006716270c1d48c59172f95,b21aee59122edcba72e8b4f233e5c9b10287a8e0
+scikit-learn/scikit-learn,23033,https://github.com/scikit-learn/scikit-learn/pull/23033,tests,2022-04-09,FIX Raise error when n_neighbours >= n_samples / 2  in manifold.trustworthiness,Micky774,non-regression test,"tion def test_trustworthiness_n_neighbors_error(): """"Raise an error when n_neighbors >= n_samples / 2. Non-regression test for #18567. """""" ```",https://github.com/scikit-learn/scikit-learn/pull/23033#discussion_r843208697,sklearn/manifold/tests/test_t_sne.py,"@@ -277,6 +277,17 @@ def test_trustworthiness():
+     assert_almost_equal(trustworthiness(X, X_embedded, n_neighbors=1), 0.2)
+ 
+ 
++def test_trustworthiness_warning():",8351361ff4ddbb24a99dac9b5afdc2114b0bdfb6,41,8,3,1,True,10,9,19,df692c03c1a6003878c6fc4d2f9f222d304dcee3,5ba76552756cd63f4b33246deba999b2940f06bb
+scikit-learn/scikit-learn,23040,https://github.com/scikit-learn/scikit-learn/pull/23040,tests,2022-04-07,"DEP auto, binary_crossentropy, categorical_crossentropy in HGBT",lorentzenchr,add a test,I think we should add a test to cover this line: https://app.codecov.io/gh/scikit-learn/scikit-learn/compare/23040/diff#D1L1854,https://github.com/scikit-learn/scikit-learn/pull/23040#discussion_r845055955,sklearn/ensemble/_hist_gradient_boosting/gradient_boosting.py,"            f""{self.n_trees_per_iteration_}, use loss=""
+-                    ""'categorical_crossentropy' instead.""
++                    f""loss='{self.loss}' is not defined for multiclass ""
++                    f""classification with n_classes={self.n_trees_per_iteration_}, ""
++                    ""use loss='log_loss' instead.""
+                 )
+             else:
+-                return _LOSSES[self.loss](sample_weight=sample_weight)
++                return HalfBinomialLoss(sample_weight=sample_weight)
++        else:
++            # should be an instance of BaseLoss
++            return self.loss",d91795a7d1480d7999adf529af1ff6339728270f,119,90,11,1,True,16,7,23,0c20ba744966d23ede67cffd7c5d2e0d01cd0658,7152e377033ba5fa6ea639afcfe82b6cf4ae1f7e
+scikit-learn/scikit-learn,23147,https://github.com/scikit-learn/scikit-learn/pull/23147,tests,2022-07-07,MNT Replaced `np.ndarray` with memview where applicable in `linear_model/_cd_fast.pyx`,Micky774,add a test,"m.random(100) clf.fit(X, y) ``` and probably also ``enet_coordinate_descent_multi_task``. It would be good to also add a test for these read-only cases because it doesn't seem tested currently",https://github.com/scikit-learn/scikit-learn/pull/23147#discussion_r862685354,sklearn/linear_model/_cd_fast.pyx,"@@ -264,9 +264,9 @@ def sparse_enet_coordinate_descent(
+     floating [::1] w,
+     floating alpha,
+     floating beta,
+-    np.ndarray[floating, ndim=1, mode='c'] X_data,
+-    np.ndarray[int, ndim=1, mode='c'] X_indices,
+-    np.ndarray[int, ndim=1, mode='c'] X_indptr,
++    floating[::1] X_data,",b91f2103845e3ca8e6e7e758cb9c7881da507ace,35,4,4,1,True,19,2,21,dfaef0c6c3aef0d00c72573728c90c1d542e2957,187dd292b1628f0fd0d60f33c53c014a2ef7dea7
+scikit-learn/scikit-learn,23214,https://github.com/scikit-learn/scikit-learn/pull/23214,tests,2022-05-02,FIX compute precision-recall at 100% recall,stephanecollot,non-regression test,"You will need to fix failing tests. Basically, it should be docstring test in most cases. We also need an additional non-regression test: I think that we should be a PR curve and check that the last point is equivalent to a decision rule that always predicts the positive class.",https://github.com/scikit-learn/scikit-learn/pull/23214#issuecomment-1109435510,,,2c4270390dfd96046811ddba0a98640800b35a18,34,18,4,1,True,3,8,11,af5b6a100357852f4c3040ff2cb06cb8691023e9,3554bfd5a11d762a3adbe81f046e75f1dab54d34
+scikit-learn/scikit-learn,23252,https://github.com/scikit-learn/scikit-learn/pull/23252,tests,2022-05-04,ENH  Optimize runtime for IsolationForest,MaxwellLZH,non-regression test,Could you please add a non-regression test with `n_jobs=2`?,https://github.com/scikit-learn/scikit-learn/pull/23252#issuecomment-1115811270,,,d0fb6232cbb0e92f9b65e5ca05cb33e24450b35f,28,5,4,2,True,6,13,19,93359b645d1c47e3c787821cf276ec486451dcac,50165ead481913fa4203f29cf8f339b0c0b6d1a5
+scikit-learn/scikit-learn,23264,https://github.com/scikit-learn/scikit-learn/pull/23264,tests,2022-05-05,FIX Avoid spurious warning in IncrementalPCA when n_samples == n_components_,lucyleeow,non-regression test,```suggestion # Ensures no warning is raised when n_samples==n_components # Non-regression test for gh-19050 ```,https://github.com/scikit-learn/scikit-learn/pull/23264#discussion_r864970485,sklearn/decomposition/tests/test_incremental_pca.py,"@@ -149,6 +150,17 @@ def test_incremental_pca_validation():
+         IncrementalPCA(n_components=n_components).partial_fit(X)
+ 
+ 
++def test_n_samples_equal_n_components():
++    # Ensures no warning is raised when n_samples==n_components",19fe2c47b100e0a0f08ff1fcb2bdb8b0eb88545c,21,1,3,1,True,8,2,10,2605293cbe3d8572e7bd16709b422c8ae34bf91d,066382be9462ee82de638d675677799f2cd31f12
+scikit-learn/scikit-learn,23275,https://github.com/scikit-learn/scikit-learn/pull/23275,tests,2022-10-28,FIX bagging with SGD and early stopping throws ZeroDivisionError,MaxwellLZH,non-regression test,```suggestion # have zero sample_weight. Non-regression test for #17229. ```,https://github.com/scikit-learn/scikit-learn/pull/23275#discussion_r924651568,sklearn/linear_model/tests/test_sgd.py,"@@ -2156,3 +2156,26 @@ def test_validation_mask_correctly_subsets(monkeypatch):
+     X_val, y_val = mock.call_args[0][1:3]
+     assert X_val.shape[0] == int(n_samples * validation_fraction)
+     assert y_val.shape[0] == int(n_samples * validation_fraction)
++
++
++def test_sgd_error_on_zero_validation_weight():
++    # Test that SGDClassifier raises error when all the validation samples
++    # have zero sample_weight",71ff76153d5a54578790253c5cf45cb05823992e,39,5,3,1,True,12,0,12,288399c39e7c137c575e1f5ce86ba2b27fde92dc,cdf011d8475d953a5ff271de45c47b3d941177b5
+scikit-learn/scikit-learn,23395,https://github.com/scikit-learn/scikit-learn/pull/23395,tests,2022-05-25,FIX attribute error is BIRCH,jeremiedbb,non-regression test,ple test in https://github.com/scikit-learn/scikit-learn/issues/23269#issuecomment-1129926568 +1 for using this as a non-regression test.,https://github.com/scikit-learn/scikit-learn/pull/23395#issuecomment-1136204515,,,20faa2880724c3ab859ff651a0d45b45a62f877c,58,0,3,1,True,3,4,7,0d923daf6ddbf1afc0915a145955cfff97505f51,c5cb381792e457232dbe858048cd1524189d2e33
+scikit-learn/scikit-learn,23513,https://github.com/scikit-learn/scikit-learn/pull/23513,tests,2022-06-09,FIX Param validation: fix generating invalid param when 2 interval constraints,jeremiedbb,test for this,Then we could add a check in the test for this case.,https://github.com/scikit-learn/scikit-learn/pull/23513#discussion_r887873223,sklearn/utils/_param_validation.py,"if int_left is not None and real_left is not None:
++            # there exists an int left to both intervals
++            return min(int_left, real_left) - 1
++
++        if int_right is not None and real_right is not None:
++            # there exists an int right to both intervals
++            return max(int_right, real_right) + 1
++
++        if int_left is not None:
++            if real_right is not None and int_left - real_right >= 2:
++                # there exists an int between the 2 intervals
++                return int_left - 1
++            else:
++                raise NotImplementedError",6b72d3eb01954e02ba6b2bb02f109de1d5cb3ed4,254,14,3,2,True,14,4,18,8ea2997dfcd72126cdd6793a2c5293406407b1dc,45b54376cd29f141e768885d37bd1132afd1c1d7
+scikit-learn/scikit-learn,23548,https://github.com/scikit-learn/scikit-learn/pull/23548,tests,2022-06-21,FIX Ensure correct sklearn.metrics.coverage_error error message for 1D array,haochunchang,non-regression test,"```suggestion def test_coverage_1d_error_message(y_true, y_score): # Non-regression test for: # https://github.com/scikit-learn/scikit-learn/issues/23368 with pytest.raises(ValueError, match=r""Expected 2D array, got 1D array instead""): ```",https://github.com/scikit-learn/scikit-learn/pull/23548#discussion_r901495673,sklearn/metrics/tests/test_ranking.py,"@@ -1569,6 +1569,19 @@ def test_coverage_tie_handling():
+     assert_almost_equal(coverage_error([[1, 1, 1]], [[0.25, 0.5, 0.5]]), 3)
+ 
+ 
++@pytest.mark.parametrize(
++    ""y_true, y_score"",
++    [
++        ([1, 0, 1], [0.25, 0.5, 0.5]),
++        ([1, 0, 1], [[0.25, 0.5, 0.5]]),
++        ([[1, 0, 1]], [0.25, 0.5, 0.5]),
++    ],
++)
++def test_coverage_1d_error_message(y_true, y_score):
++    with pytest.raises(ValueError, match=r""Expected 2D array, got 1D array instead""):",659793c4eb228885f8582a086691a43e359afc7d,24,2,4,1,True,6,0,6,7d9bc179e7c222c6dc70750c840099f242e09a80,2c54c51ccffb4737312b0eaca9fe8f7a166c5108
+scikit-learn/scikit-learn,23624,https://github.com/scikit-learn/scikit-learn/pull/23624,tests,2022-06-29,MAINT Use _validate_params in GaussianProcessRegressor and GaussianProcessClassifier,yanhong-zhao-ef,unit test,"Some unit tests failed because they complain about optimizer should not be set to `None`, maybe we can allow `None` here in `optimizer`?",https://github.com/scikit-learn/scikit-learn/pull/23624#discussion_r898129565,sklearn/gaussian_process/_gpr.py,"@@ -173,6 +176,16 @@ def optimizer(obj_func, initial_theta, bounds):
+     (array([653.0..., 592.1...]), array([316.6..., 316.6...]))
+     """"""
+ 
++    _parameter_constraints = {
++        ""kernel"": [None, Kernel],
++        ""alpha"": [Real, ""array-like""],
++        ""optimizer"": [StrOptions({""fmin_l_bfgs_b""}), callable],",289c938c347df20c70e329bddbcd54383bd4c6dc,39,8,4,2,True,7,4,11,f7a44efec58c73b7a11fbe5dbc2b2a300dba639b,8d0df8d14840440768dca6bc1f59fa858a620b73
+scikit-learn/scikit-learn,23772,https://github.com/scikit-learn/scikit-learn/pull/23772,tests,2022-07-20,MAINT Add one-sided set differences for clarity in param validation,Micky774,add a test,traints: continue ``` otherwise it will fail if there's a parameter without constraint. Please also add a test in `test_param_validation.py` for that case: a function with less constraints than params,https://github.com/scikit-learn/scikit-learn/pull/23772#discussion_r914910366,sklearn/utils/_param_validation.py,"d this function.
+     """"""
+-    if params.keys() != parameter_constraints.keys():
++    if len(set(parameter_constraints.keys()) - set(params.keys())) != 0:
+         raise ValueError(
+-            f""The parameter constraints {list(parameter_constraints.keys())} do not ""
+-            f""match the parameters to validate {list(params.keys())}.""
++            f""The parameter constraints {list(parameter_constraints.keys())}""
++            "" contain unexpected parameters""
++            f"" {set(parameter_constraints.keys())-set(params.keys())}""
+         )
+ 
+     for param_name, param_val in params.items():",dd06a2cfc94fceeaa44e59399db1001cfc2f2c4c,38,10,4,2,True,6,9,15,f0af898de5bfa93916b659438b4cf0b86fffd974,562b64335e6a60e408e6f55880af48f6978e1e87
+scikit-learn/scikit-learn,23777,https://github.com/scikit-learn/scikit-learn/pull/23777,tests,2022-06-29,MAINT validate parameters in LocalOutlierFactor ,SandroEph,test for this,"validate the parameter using the string `""no_validation""` or we find a more complex way (maybe with tags), to skip the test for this specific configuration. @jeremiedbb WDYT?",https://github.com/scikit-learn/scikit-learn/pull/23777#issuecomment-1168646776,,,fc3b52bc42bfe282fe6226994c9d5ea984a72143,24,17,4,2,True,0,3,3,ef21ca1950f9570f2f6b1ce05d24111f78f9f612,960d16d9496f08fc790544638586f4c79f30b387
+scikit-learn/scikit-learn,24007,https://github.com/scikit-learn/scikit-learn/pull/24007,tests,2022-07-27,ENH add NaN and NA support in parameter validation,glemaitre,add a test,"For completeness, can we add a test for `float(""nan"")`?",https://github.com/scikit-learn/scikit-learn/pull/24007#discussion_r930068964,sklearn/utils/tests/test_param_validation.py,"@@ -360,6 +364,10 @@ def test_generate_valid_param(constraint):
+         (Real, 0.5),
+         (""boolean"", False),
+         (""verbose"", 1),
++        (""missing_values"", -1),
++        (""missing_values"", -1.0),
++        (""missing_values"", None),",8003e7987287bb458fee9716a9f87914556159be,90,0,2,1,True,16,4,20,a601e8c74ebf5c7220a32f52e82fa08532215d12,955e6ec48d7093931e57b170afd831f1e55a650e
+scikit-learn/scikit-learn,24338,https://github.com/scikit-learn/scikit-learn/pull/24338,tests,2022-09-14,FEA Add support for micro averaging in ovr-roc-auc,ArturoAmorQ,add a test,Could you also add a test for perfectly ordered probabilities (that should lead to a roc AUC of 1.0) in another test? This is assuming it does not already exist in which case it would be better to extend the existing test.,https://github.com/scikit-learn/scikit-learn/pull/24338#discussion_r962715551,sklearn/metrics/tests/test_ranking.py,"@@ -736,6 +736,18 @@ def test_roc_auc_score_multiclass_error(msg, kwargs):
+         roc_auc_score(y_true, y_prob, **kwargs)
+ 
+ 
++def test_assert_ovr_roc_auc_chance_level():
++    # Build equal probability predictions to multiclass problem
++    y_true = np.array([3, 1, 2, 0])
++    y_pred = 0.25 * np.ones((4, 4))
++
++    macro_roc_auc = roc_auc_score(y_true, y_pred, multi_class=""ovr"", average=""macro"")
++    assert_allclose(macro_roc_auc, 0.5)
++
++    micro_roc_auc = roc_auc_score(y_true, y_pred, multi_class=""ovr"", average=""micro"")
++    assert_allclose(micro_roc_auc, 0.5)
++",827752891984fbfb426a245e6264e65b504055c6,83,6,3,1,True,21,2,23,1aa38c44f60cb729faf217ef85f5cb7d1dd30b46,7a90e0100f44d8e0a0287202d0aae27ebb9cf473

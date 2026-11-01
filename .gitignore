@@ -7,4 +7,6 @@ data/raw/
 *.egg-info/
 .venv/
 data/chroma_db/
+data/
+evaluation/candidates.csv
 *.ipynb_checkpoints
