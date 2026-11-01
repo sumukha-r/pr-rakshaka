@@ -14,6 +14,8 @@ double-underscores) so multiple repos can be indexed without collision.
 
 import ast
 import base64
+import contextlib
+import contextvars
 import hashlib
 import os
 import re
@@ -35,6 +37,22 @@ MAX_FILES    = int(os.getenv("INDEX_MAX_FILES", "500"))   # guard against huge r
 MAX_CHUNK_TOKENS = 400   # rough chars-based limit; keeps chunks focused
 
 _embed_model: Optional[SentenceTransformer] = None
+
+# The commit the index is read at. None means "the repo as it is today".
+# The evaluation sets it to a PR's base commit, so a pre-2023 PR is checked
+# against the code that existed then, not against code written after it.
+_INDEX_REF: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar(
+    "pr_rakshaka_index_ref", default=None)
+
+
+@contextlib.contextmanager
+def use_index_ref(ref: Optional[str]):
+    """Within this block, every index lookup, build and check uses the repo at `ref`."""
+    token = _INDEX_REF.set(ref or None)
+    try:
+        yield
+    finally:
+        _INDEX_REF.reset(token)
 
 def _get_embed_model() -> SentenceTransformer:
     global _embed_model
@@ -105,19 +123,23 @@ class CodeChunk:
 # Step 1 — list Python files in the repo via GitHub tree API
 # ---------------------------------------------------------------------------
 
-def _list_python_files(repo: str, token: Optional[str]) -> list[str]:
-    """Return list of .py file paths for the repo's default branch."""
+def _list_python_files(repo: str, token: Optional[str],
+                       ref: Optional[str] = None) -> list[str]:
+    """Return list of .py file paths for the repo at `ref` (default: its default branch)."""
     headers = {"Accept": "application/vnd.github+json"}
     if token:
         headers["Authorization"] = f"Bearer {token}"
 
-    # get default branch
-    meta = requests.get(
-        f"https://api.github.com/repos/{repo}",
-        headers=headers, timeout=15
-    )
-    meta.raise_for_status()
-    branch = meta.json().get("default_branch", "main")
+    if ref:
+        branch = ref
+    else:
+        # get default branch
+        meta = requests.get(
+            f"https://api.github.com/repos/{repo}",
+            headers=headers, timeout=15
+        )
+        meta.raise_for_status()
+        branch = meta.json().get("default_branch", "main")
 
     # fetch full recursive tree
     tree_url = f"https://api.github.com/repos/{repo}/git/trees/{branch}?recursive=1"
@@ -150,7 +172,8 @@ def _is_noise_file(path: str) -> bool:
 # Step 2 — fetch a single file's source via GitHub contents API
 # ---------------------------------------------------------------------------
 
-def _fetch_file(repo: str, path: str, token: Optional[str]) -> Optional[str]:
+def _fetch_file(repo: str, path: str, token: Optional[str],
+                ref: Optional[str] = None) -> Optional[str]:
     """Return decoded source text, or None if fetch fails / file is binary."""
     headers = {"Accept": "application/vnd.github+json"}
     if token:
@@ -158,7 +181,7 @@ def _fetch_file(repo: str, path: str, token: Optional[str]) -> Optional[str]:
 
     resp = requests.get(
         f"https://api.github.com/repos/{repo}/contents/{path}",
-        headers=headers, timeout=15
+        headers=headers, params={"ref": ref} if ref else None, timeout=15
     )
     if resp.status_code != 200:
         return None
@@ -245,15 +268,17 @@ def _chunk_file(repo: str, filepath: str, source: str) -> list[CodeChunk]:
 # Step 4 — embed chunks and upsert into ChromaDB
 # ---------------------------------------------------------------------------
 
-def _collection_name(repo: str) -> str:
-    """ChromaDB collection names: no slashes."""
-    return repo.replace("/", "__")
+def _collection_name(repo: str, ref: Optional[str] = None) -> str:
+    """ChromaDB collection names: no slashes. A pinned commit gets its own collection."""
+    ref = ref or _INDEX_REF.get()
+    name = repo.replace("/", "__")
+    return f"{name}__at_{ref[:10]}" if ref else name
 
 
-def _get_or_create_collection(repo: str) -> chromadb.Collection:
+def _get_or_create_collection(repo: str, ref: Optional[str] = None) -> chromadb.Collection:
     client = chromadb.PersistentClient(path=CHROMA_PATH)
     return client.get_or_create_collection(
-        name=_collection_name(repo),
+        name=_collection_name(repo, ref),
         metadata={"hnsw:space": "cosine"},
     )
 
@@ -291,6 +316,7 @@ def index_repo(
     repo: str,
     token: Optional[str] = None,
     force_reindex: bool = False,
+    ref: Optional[str] = None,
 ) -> dict:
     """
     Index a GitHub repo into ChromaDB.
@@ -299,16 +325,19 @@ def index_repo(
         repo:          "owner/repo" e.g. "scikit-learn/scikit-learn"
         token:         GitHub personal access token (optional, raises rate limit)
         force_reindex: if True, delete the collection first and rebuild from scratch
+        ref:           commit SHA to index the repo at (default: the current default
+                       branch, or the commit set by `use_index_ref`)
 
     Returns:
         {"repo": repo, "files_indexed": N, "chunks_indexed": M}
     """
-    collection = _get_or_create_collection(repo)
+    ref = ref or _INDEX_REF.get()
+    collection = _get_or_create_collection(repo, ref)
 
     if force_reindex:
         client = chromadb.PersistentClient(path=CHROMA_PATH)
-        client.delete_collection(_collection_name(repo))
-        collection = _get_or_create_collection(repo)
+        client.delete_collection(_collection_name(repo, ref))
+        collection = _get_or_create_collection(repo, ref)
         existing_ids: set[str] = set()
     else:
         # avoid re-embedding files we already have
@@ -317,8 +346,8 @@ def index_repo(
             m["filepath"] for m in existing_meta.get("metadatas") or []
         }
 
-    print(f"[indexer] Listing Python files in {repo}...")
-    py_files = _list_python_files(repo, token)
+    print(f"[indexer] Listing Python files in {repo}" + (f" at {ref[:10]}" if ref else "") + "...")
+    py_files = _list_python_files(repo, token, ref)
     print(f"[indexer] Found {len(py_files)} .py files (cap: {MAX_FILES})")
 
     files_indexed = 0
@@ -328,7 +357,7 @@ def index_repo(
         if path in existing_ids:
             continue   # already indexed, skip
 
-        source = _fetch_file(repo, path, token)
+        source = _fetch_file(repo, path, token, ref)
         if not source:
             continue
 
@@ -355,6 +384,8 @@ def index_repo(
 if __name__ == "__main__":
     import sys
     repo_arg = sys.argv[1] if len(sys.argv) > 1 else "psf/requests"
+    ref_arg = sys.argv[2] if len(sys.argv) > 2 else None     # optional commit SHA
     token_arg = os.getenv("GITHUB_TOKEN")
-    result = index_repo(repo_arg, token=token_arg)
+    result = index_repo(repo_arg, token=token_arg, ref=ref_arg)
     print(result)
+    
