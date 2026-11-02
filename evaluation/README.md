@@ -12,11 +12,15 @@ merged pull requests, with a dev set to tune against and a test set that is run 
    problem or pointed at existing code, plus quiet PRs to use as negatives. PRs with long arguments
    (`--max-discussion`, default 25 comments) are skipped. Add `--state open` to take open PRs instead.
    Each row records `snapshot_sha`, the commit the reviewer was looking at.
-2. **Label** the candidates, one keystroke each:
-   `python -m evaluation.label_candidates evaluation/candidates.csv --limit 25`
-   It shows the reviewer's comment and the code, and asks whether the tool could be expected to catch
-   it. Skipped PRs are remembered. Labels land in `evaluation/labels/`; for a hand-made one use
-   `python -m evaluation.labels stub <PR URL>`. Check with `python -m evaluation.labels validate`.
+2. **Labels** live in one file, `evaluation/eval_set.csv`: one row per PR and check, with the
+   reviewer's quote and a short note on why. Open it, read the rows, and delete any you disagree
+   with (to drop a PR, delete every row with its `id`). `expect` is `finding` (the tool should report
+   something), `none` (it should stay silent), or `out_of_scope`/`unclear` (left out of scoring; a
+   check with no row is `unclear`). A blank `target_file` means any file in the PR counts, and a blank
+   `evidence_contains` means any line in that file. More labels can be added with
+   `python -m evaluation.label_candidates evaluation/candidates.csv --limit 25`, which writes JSON
+   files into `evaluation/labels/`; if the same PR is in both places the JSON file wins.
+   Check the set with `python -m evaluation.labels validate`.
 3. **Split once**: `python -m evaluation.split --seed 11`, then commit `split.json` and tag it.
    From here the test labels must not change.
 4. **Tune on dev**: `python -m evaluation.run_eval --split dev --provider groq` (and `local`), then

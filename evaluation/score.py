@@ -48,8 +48,8 @@ def finding_key(pr_id: str, check: str, f: dict) -> str:
 
 
 def matches(finding: dict, target: dict) -> bool:
-    if finding.get("filename") != target.get("file"):
-        return False
+    if target.get("file") and finding.get("filename") != target["file"]:
+        return False                  # a blank target file means any file in the PR
     want = norm(target.get("evidence_contains", ""))
     return not want or want in norm(finding.get("evidence", ""))
 

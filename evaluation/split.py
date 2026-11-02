@@ -1,7 +1,7 @@
 """
 split.py — divide the labelled PRs into dev and test, once.
 
-    python -m evaluation.split --seed 11
+    python -m evaluation.split --seed <seed_number>
 
 The script refuses to overwrite an existing split (so you cannot re-roll it
 after seeing results) and records a fingerprint of the test labels. run_eval
@@ -20,7 +20,6 @@ from pathlib import Path
 
 from typing import Optional
 
-from evaluation import labels as label_store
 from evaluation.labels import CHECKS, load_all, problems, scored_checks
 
 SPLIT_FILE = Path(__file__).parent / "split.json"
@@ -49,12 +48,13 @@ def make_split(labels: dict[str, dict], seed: int) -> dict[str, list[str]]:
     return {k: sorted(v) for k, v in sides.items()}
 
 
-def fingerprint(ids: list[str], directory: Optional[Path] = None) -> str:
-    directory = Path(directory or label_store.LABEL_DIR)
+def fingerprint(ids: list[str], labels: Optional[dict] = None) -> str:
+    """A hash of what the test labels say, so any edit after the split is noticed."""
+    labels = load_all() if labels is None else labels
     h = hashlib.sha256()
     for lid in sorted(ids):
         h.update(lid.encode())
-        h.update((directory / f"{lid}.json").read_bytes())
+        h.update(json.dumps(labels[lid], sort_keys=True).encode())
     return h.hexdigest()
 
 

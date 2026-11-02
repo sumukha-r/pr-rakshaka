@@ -171,6 +171,7 @@ def workspace(tmp_path, monkeypatch):
         label = make_label(n, repo, missing_tests="finding" if n % 2 else "none")
         (labels_dir / f"{label['id']}.json").write_text(json.dumps(label))
     monkeypatch.setattr(lab, "LABEL_DIR", labels_dir)
+    monkeypatch.setattr(lab, "LABEL_CSV", tmp_path / "no_such_eval_set.csv")
     for mod in (split, run_eval, score):
         monkeypatch.setattr(mod, "SPLIT_FILE", tmp_path / "split.json")
     monkeypatch.setattr(run_eval, "RUN_DIR", tmp_path / "runs")
@@ -475,3 +476,90 @@ def test_labeller_quiet_prs_are_silent_but_check_one_needs_tests_in_the_pr():
     assert no_tests["checks"]["missing_tests"]["expect"] == "unclear"
     assert no_tests["checks"]["smell"]["expect"] == "none"
     assert lab.problems(full) == []
+
+
+def test_labeller_picks_the_only_source_file_and_warns_when_tests_are_already_there():
+    out = []
+    pr = fake_pr(None)
+    pr.files.append(snapshot.PRFile("pkg/tests/test_a.py", "modified", 3, 0, "@@ -1 +1 @@\n+x"))
+    label = lc.decide(candidate(path=""), lambda r: pr, scripted("f", "2", "", ""), out.append)
+    assert label["checks"]["missing_tests"]["targets"][0]["file"] == "pkg/a.py"     # no question asked
+    text = "\n".join(out)
+    assert "[test] pkg/tests/test_a.py" in text and "tests are already touched" in text
+
+
+def test_labeller_asks_which_file_when_several_sources_changed():
+    pr = fake_pr(None)
+    pr.files.append(snapshot.PRFile("pkg/b.py", "modified", 1, 0, "@@ -1 +1 @@\n+y = 1"))
+    label = lc.decide(candidate(path=""), lambda r: pr, scripted("f", "2", "1", "", "", ""),
+                      lambda m: None)
+    assert label["checks"]["missing_tests"]["targets"][0]["file"] == "pkg/b.py"
+
+
+def test_a_comment_on_a_test_file_does_not_make_the_test_the_target():
+    label = lc.decide(candidate(path="pkg/tests/test_a.py"), fake_pr, scripted("f", "2", "", ""),
+                      lambda m: None)
+    assert label["checks"]["missing_tests"]["targets"][0]["file"] == "pkg/a.py"
+
+
+def test_only_list_reads_pr_references(tmp_path):
+    f = tmp_path / "keep.txt"
+    f.write_text("# my picks\nscikit-learn/scikit-learn#16182   tests\n\npsf/requests#5856\n")
+    assert lc.read_only_list(str(f)) == {"scikit-learn__scikit-learn__16182", "psf__requests__5856"}
+
+
+# ---------------------------------------------------------------------------
+# the one-file label set (eval_set.csv)
+# ---------------------------------------------------------------------------
+
+def test_csv_round_trip_keeps_targets_notes_and_unclear_checks(tmp_path):
+    a = make_label(1, missing_tests="finding", smell="none")
+    a["checks"]["missing_tests"]["targets"] = [{"file": "pkg/a.py", "evidence_contains": "def foo"},
+                                               {"file": "", "evidence_contains": ""}]
+    a["checks"]["missing_tests"]["note"] = "reviewer asked twice"
+    b = make_label(2, "o/s", reuse="none")
+    path = tmp_path / "set.csv"
+    lab.write_csv({a["id"]: a, b["id"]: b}, path)
+    back = lab.from_csv(path)
+    assert back[a["id"]] == a and back[b["id"]] == b
+    assert back[a["id"]]["checks"]["reuse"]["expect"] == "unclear"      # no row = unclear
+    assert lab.problems(back[a["id"]]) == [] and lab.problems(back[b["id"]]) == []
+
+
+def test_load_all_reads_the_csv_and_json_wins_for_the_same_pr(workspace, monkeypatch):
+    csv_path = workspace / "eval_set.csv"
+    only_csv = make_label(50, missing_tests="none")
+    dup = make_label(1, missing_tests="none")                           # also a JSON file (finding)
+    lab.write_csv({only_csv["id"]: only_csv, dup["id"]: dup}, csv_path)
+    monkeypatch.setattr(lab, "LABEL_CSV", csv_path)
+    labels = lab.load_all()
+    assert "o__r__50" in labels and len(labels) == 13
+    assert labels["o__r__1"]["checks"]["missing_tests"]["expect"] == "finding"
+
+
+def test_blank_target_file_means_any_file_and_blank_evidence_any_line():
+    assert score.matches(finding(file="pkg/zzz.py", evidence="x"), {"file": "", "evidence_contains": ""})
+    assert not score.matches(finding(file="pkg/zzz.py"), {"file": "pkg/a.py", "evidence_contains": ""})
+
+
+def test_test_labels_in_the_csv_are_frozen_too(workspace, monkeypatch, capsys):
+    labels = lab.load_all()
+    lab.write_csv(labels, workspace / "eval_set.csv")
+    for f in lab.LABEL_DIR.glob("*.json"):
+        f.unlink()
+    monkeypatch.setattr(lab, "LABEL_CSV", workspace / "eval_set.csv")
+    assert split.main(["--seed", "3"]) == 0
+    monkeypatch.setattr(run_eval, "run_one", fake_run)
+    rows = list(csv.DictReader(open(workspace / "eval_set.csv", encoding="utf-8")))
+    test_ids = json.loads((workspace / "split.json").read_text())["test"]
+    for r in rows:                                                     # edit a test PR's label in the CSV
+        if r["id"] == test_ids[0]:
+            r["expect"] = "none" if r["expect"] == "finding" else "finding"
+            break
+    with open(workspace / "eval_set.csv", "w", newline="", encoding="utf-8") as fh:
+        w = csv.DictWriter(fh, fieldnames=lab.CSV_COLUMNS)
+        w.writeheader()
+        w.writerows(rows)
+    assert run_eval.main(["--split", "test", "--provider", "groq", "--final"]) == 1
+    assert "no longer an unseen set" in capsys.readouterr().err
+    

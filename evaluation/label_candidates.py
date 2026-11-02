@@ -22,6 +22,7 @@ from typing import Callable, Optional
 from evaluation import labels as label_store
 from evaluation.labels import CHECKS, blank_check, label_id
 from evaluation.snapshot import added_lines_of
+from src.llm.prompts import is_test_file
 
 HINT_TO_CHECK = {"tests": "missing_tests", "smell": "smell", "reuse": "reuse"}
 
@@ -81,10 +82,21 @@ def decide(row: dict, get_pr: Callable[[dict], object], ask: Callable[[str], str
     if answer != "f":
         return None
 
-    filename = row["path"] if row["path"].endswith(".py") else ""
-    if not filename:
-        filename = ask("file the tool should quote from: ").strip()
     pr = get_pr(row)
+    say("\nfiles changed at the commit the reviewer saw:")
+    for f in pr.files:
+        say(f"  {'[test]' if is_test_file(f.filename) else '      '} {f.filename}  +{f.additions}/-{f.deletions}")
+    if check == "missing_tests" and any(is_test_file(f.filename) for f in pr.files):
+        say("  note: tests are already touched here. Is the reviewer asking for more, or for a new one?")
+    sources = [f.filename for f in pr.files if f.filename.endswith(".py") and not is_test_file(f.filename)]
+    filename = row["path"] if row["path"] in sources else ""
+    if not filename and len(sources) == 1:
+        filename = sources[0]
+    if not filename:
+        for i, name in enumerate(sources, 1):
+            say(f"  {i}. {name}")
+        pick = ask("number of the source file the tool should quote from (or type a path): ").strip()
+        filename = sources[int(pick) - 1] if pick.isdigit() and 1 <= int(pick) <= len(sources) else pick
     added = added_lines_of(pr, filename)
     say(f"\nlines the PR adds to {filename}:")
     for i, ln in enumerate(added[:40], 1):
@@ -108,9 +120,25 @@ def decide(row: dict, get_pr: Callable[[dict], object], ask: Callable[[str], str
     return label
 
 
+def read_only_list(path: str) -> set[str]:
+    """Label ids from a text file with one PR per line: 'owner/repo#123' (or an id)."""
+    ids = set()
+    for line in Path(path).read_text(encoding="utf-8").splitlines():
+        line = line.split("  ")[0].strip()
+        if not line or line.startswith("#") and "/" not in line:
+            continue
+        if "#" in line:
+            repo, number = line.rsplit("#", 1)
+            ids.add(label_id(repo.strip(), int(number)))
+        else:
+            ids.add(line)
+    return ids
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="Label candidate PRs one keystroke at a time.")
     ap.add_argument("candidates")
+    ap.add_argument("--only", help="a text file of PRs to go through (owner/repo#123, one per line)")
     ap.add_argument("--hint", choices=list(HINT_TO_CHECK) + ["negative"])
     ap.add_argument("--limit", type=int, default=25, help="stop after this many labels this session")
     args = ap.parse_args(argv)
@@ -119,12 +147,16 @@ def main(argv=None) -> int:
     from evaluation.snapshot import build_pr
     gh = GitHub()
     rows = [r for r in load_candidates(args.candidates) if not args.hint or r["hint"] == args.hint]
+    if args.only:
+        wanted = read_only_list(args.only)
+        rows = [r for r in rows if label_id(r["repo"], int(r["number"])) in wanted]
     label_store.LABEL_DIR.mkdir(parents=True, exist_ok=True)
     skipped_file = Path(__file__).parent / "skipped.txt"
     skipped = set(skipped_file.read_text().split()) if skipped_file.exists() else set()
+    have = set(label_store.load_all())
     todo = [r for r in rows
             if label_id(r["repo"], int(r["number"])) not in skipped
-            and not (label_store.LABEL_DIR / f"{label_id(r['repo'], int(r['number']))}.json").exists()]
+            and label_id(r["repo"], int(r["number"])) not in have]
     print(f"{len(todo)} unlabelled candidate(s)")
     written = 0
     try:

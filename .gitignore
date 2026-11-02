@@ -8,5 +8,7 @@ data/raw/
 .venv/
 data/chroma_db/
 data/
-evaluation/candidates.csv
+evaluation/runs
+evaluation/eval_set.csv
+evaluation/split.json
 *.ipynb_checkpoints
