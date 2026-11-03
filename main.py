@@ -67,11 +67,11 @@ def repo_is_indexed(repo: str) -> Optional[bool]:
     """True/False, or None when the vector store cannot be opened at all."""
     try:
         import chromadb
-        from src.rag.indexer import CHROMA_PATH, _collection_name
+        from src.rag.indexer import CHROMA_PATH, _collection_name, _partial_name
         store = chromadb.PersistentClient(path=CHROMA_PATH)
         names = [getattr(c, "name", c) for c in store.list_collections()]
-        if _collection_name(repo) not in names:
-            return False
+        if _collection_name(repo) not in names or _partial_name(repo) in names:
+            return False   # missing, or a build that did not finish
         return store.get_collection(_collection_name(repo)).count() > 0
     except Exception as exc:  # noqa: BLE001 - chromadb missing, corrupt store, ...
         log.debug("cannot inspect the index: %s", exc)

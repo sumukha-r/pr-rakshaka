@@ -16,7 +16,8 @@ import os
 from typing import Optional
 
 from src.ingestion.pr_parser import PRFile, PullRequest
-from src.llm.aggregator import Finding, added_lines, keep_evidenced
+from src.llm.aggregator import (Finding, added_lines, is_substantive, keep_evidenced,
+                                limit_per_file)
 from src.llm.client import chat_json
 from src.llm.prompts import (
     MISSING_TESTS_SYSTEM,
@@ -27,6 +28,7 @@ from src.llm.prompts import (
 log = logging.getLogger(__name__)
 
 CHECK_NAME = "missing_tests"
+MAX_FINDINGS_PER_FILE = 2   # one gap reported as several findings is noise
 MAX_SOURCE_FILES = 5   # one LLM call per file; protects the per-minute token limit
 MAX_TEST_FILES = 3     # test diffs shown as context for each call
 
@@ -105,6 +107,9 @@ def check_missing_tests(pr: PullRequest, *, max_files: int = MAX_SOURCE_FILES,
         analyses.append((f.filename, analysis))
 
     kept, dropped = keep_evidenced(findings, patches)
+    weak = [f for f in kept if not is_substantive(f)]
+    kept = limit_per_file([f for f in kept if is_substantive(f)], MAX_FINDINGS_PER_FILE)
+    dropped = dropped + weak
     if report is not None:
         report.update(files_sent=len(candidates), raw_findings=len(findings),
                       dropped=len(dropped))
@@ -158,3 +163,4 @@ if __name__ == "__main__":
             print(_format(check_missing_tests(pr)))
     else:
         print(_format(check_missing_tests(pr)))
+        

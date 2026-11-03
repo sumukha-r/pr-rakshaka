@@ -78,9 +78,18 @@ the behaviour is unchanged: return no findings. Only flag behaviour that is \
 new or different from what the removed lines did.
 
 Every finding MUST include an "evidence" field: ONE line copied exactly from \
-the added lines ('+' lines) of the source diff, without the leading '+'. If \
-you cannot quote such a line, you have no finding. Never invent or paraphrase \
-code.
+the added lines ('+' lines) of the source diff, without the leading '+'. The \
+line must be executable code that implements the untested behaviour (a def, an \
+if, a return, a call), never a bare name, a comment or a docstring. If you \
+cannot quote such a line, you have no finding. Never invent or paraphrase code.
+
+Report each untested behaviour once. If several new parameters or fields belong \
+to one change, give ONE finding for the change, not one per parameter. Report \
+at most two findings per file.
+
+If the pull request changes a test file, read it before flagging: a test that \
+calls the changed function or class, even indirectly, covers it. Flag only what \
+no changed test line reaches.
 
 Think before you decide. Start your JSON object with an "analysis" field of \
 2-4 sentences covering: (1) what the removed lines did versus what the added \
@@ -260,6 +269,11 @@ it are not worth reporting. A cheap per-item step (an arithmetic update, a
 comparison, a dict or set lookup, one search with an already compiled pattern)
 is not a smell.
 
+A finding is a cost the added line itself incurs. Never report: a comment line; \
+a hedge such as "could be expensive if the data is large" (state the mechanism or \
+stay silent); a dict, set or attribute lookup; or a change whose point is to do \
+less work (a guard, a cache, a "do this only once" fix).
+
 Be consistent with your own analysis. If it concludes that the costly work is
 done once, hoisted out, batched, cheap, or on a small collection, "findings"
 must be empty. A finding must describe a cost the added lines introduce, never
@@ -298,3 +312,4 @@ def build_hot_path_prompt(pr_title: str, filename: str, patch: str,
         + "Return JSON with analysis first and findings second. Each finding must "
         "quote one exact added line from this file's diff."
     )
+    

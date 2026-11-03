@@ -55,8 +55,12 @@ def matches(finding: dict, target: dict) -> bool:
 
 
 def _check_result(run: dict, name: str) -> Optional[dict]:
+    """A check that was skipped on purpose (no Python in the PR) is a result with
+    no findings, not a failure; only 'failed' or a missing run counts as not run."""
     for c in run.get("checks", []):
         if c.get("name") == name:
+            if c.get("status") == "skipped" and "no Python source" in (c.get("note") or ""):
+                return dict(c, status="ok", findings=[])
             return c
     return None
 

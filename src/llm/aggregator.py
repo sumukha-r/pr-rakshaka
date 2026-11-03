@@ -82,6 +82,44 @@ def evidence_in_diff(evidence: str, patch: str, *, min_len: int = 6,
     return False
 
 
+_BARE_NAME = re.compile(r"^[\w.]+$")
+_HEDGED = re.compile(
+    r"\bif (the|this|that|a|an)\b[^.]{0,60}\b(large|big|grows?|many|huge)\b"
+    r"|\bcould be (expensive|costly|slow)\b"
+    r"|\bmight be (expensive|costly|slow)\b"
+    r"|\b(avoids?|avoiding|now (called|runs?|done) only once)\b",
+    re.I,
+)
+
+
+def is_substantive(finding: Finding) -> bool:
+    """
+    Cheap quality gate, applied after the evidence filter. A quote can be real
+    and still be a poor finding, so drop two shapes seen in the dev set:
+      - the evidence is one bare name (`waiters`) or a comment line, so it points
+        at nothing runnable;
+      - a smell whose message is a hedge ("could be expensive if the dict is
+        large") or describes work the PR avoids.
+    """
+    ev = _norm(finding.evidence)
+    if _BARE_NAME.match(ev) or ev.startswith("#"):
+        return False
+    if finding.check == "smell" and _HEDGED.search(finding.message or ""):
+        return False
+    return True
+
+
+def limit_per_file(findings: list[Finding], n: int) -> list[Finding]:
+    """Keep at most `n` findings per file, in the order the model gave them."""
+    seen: dict[str, int] = {}
+    out = []
+    for f in findings:
+        seen[f.filename] = seen.get(f.filename, 0) + 1
+        if seen[f.filename] <= n:
+            out.append(f)
+    return out
+
+
 def keep_evidenced(
     findings: list[Finding], patches: dict[str, str]
 ) -> tuple[list[Finding], list[Finding]]:
@@ -95,3 +133,4 @@ def keep_evidenced(
         patch = patches.get(f.filename, "")
         (kept if evidence_in_diff(f.evidence, patch) else dropped).append(f)
     return kept, dropped
+    

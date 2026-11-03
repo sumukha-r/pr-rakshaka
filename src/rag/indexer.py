@@ -20,6 +20,7 @@ import hashlib
 import os
 import re
 import textwrap
+import time
 from dataclasses import dataclass
 from typing import Optional
 
@@ -33,6 +34,7 @@ from sentence_transformers import SentenceTransformer
 
 CHROMA_PATH = os.getenv("CHROMA_PATH", "data/chromadb")
 EMBED_MODEL  = os.getenv("EMBED_MODEL",  "all-MiniLM-L6-v2")
+_RETRY_SLEEP = 2.0   # seconds; doubles on each retry
 MAX_FILES    = int(os.getenv("INDEX_MAX_FILES", "500"))   # guard against huge repos
 MAX_CHUNK_TOKENS = 400   # rough chars-based limit; keeps chunks focused
 
@@ -123,6 +125,26 @@ class CodeChunk:
 # Step 1 — list Python files in the repo via GitHub tree API
 # ---------------------------------------------------------------------------
 
+def _get(url: str, headers: dict, params: Optional[dict] = None,
+         timeout: int = 30, attempts: int = 4) -> requests.Response:
+    """requests.get with retries for timeouts, dropped connections, 5xx and rate limits.
+    Raises the last error when every attempt fails (so the index stays marked partial)."""
+    last: Exception | None = None
+    for i in range(attempts):
+        try:
+            resp = requests.get(url, headers=headers, params=params, timeout=timeout)
+            limited = resp.status_code == 429 or (
+                resp.status_code == 403 and resp.headers.get("X-RateLimit-Remaining") == "0")
+            if resp.status_code >= 500 or limited:
+                raise requests.HTTPError(f"{resp.status_code} from {url}")
+            return resp
+        except requests.RequestException as exc:
+            last = exc
+            if i < attempts - 1:
+                time.sleep(_RETRY_SLEEP * (2 ** i))
+    raise last  # type: ignore[misc]
+
+
 def _list_python_files(repo: str, token: Optional[str],
                        ref: Optional[str] = None) -> list[str]:
     """Return list of .py file paths for the repo at `ref` (default: its default branch)."""
@@ -134,16 +156,13 @@ def _list_python_files(repo: str, token: Optional[str],
         branch = ref
     else:
         # get default branch
-        meta = requests.get(
-            f"https://api.github.com/repos/{repo}",
-            headers=headers, timeout=15
-        )
+        meta = _get(f"https://api.github.com/repos/{repo}", headers, timeout=30)
         meta.raise_for_status()
         branch = meta.json().get("default_branch", "main")
 
     # fetch full recursive tree
     tree_url = f"https://api.github.com/repos/{repo}/git/trees/{branch}?recursive=1"
-    resp = requests.get(tree_url, headers=headers, timeout=30)
+    resp = _get(tree_url, headers, timeout=60)
     resp.raise_for_status()
     data = resp.json()
 
@@ -179,10 +198,8 @@ def _fetch_file(repo: str, path: str, token: Optional[str],
     if token:
         headers["Authorization"] = f"Bearer {token}"
 
-    resp = requests.get(
-        f"https://api.github.com/repos/{repo}/contents/{path}",
-        headers=headers, params={"ref": ref} if ref else None, timeout=15
-    )
+    resp = _get(f"https://api.github.com/repos/{repo}/contents/{path}", headers,
+                params={"ref": ref} if ref else None, timeout=30)
     if resp.status_code != 200:
         return None
 
@@ -275,6 +292,11 @@ def _collection_name(repo: str, ref: Optional[str] = None) -> str:
     return f"{name}__at_{ref[:10]}" if ref else name
 
 
+def _partial_name(repo: str, ref: Optional[str] = None) -> str:
+    """Marker collection that exists only while an index build is unfinished."""
+    return _collection_name(repo, ref) + "__partial"
+
+
 def _get_or_create_collection(repo: str, ref: Optional[str] = None) -> chromadb.Collection:
     client = chromadb.PersistentClient(path=CHROMA_PATH)
     return client.get_or_create_collection(
@@ -346,6 +368,9 @@ def index_repo(
             m["filepath"] for m in existing_meta.get("metadatas") or []
         }
 
+    store = chromadb.PersistentClient(path=CHROMA_PATH)
+    store.get_or_create_collection(name=_partial_name(repo, ref))   # removed when the build finishes
+
     print(f"[indexer] Listing Python files in {repo}" + (f" at {ref[:10]}" if ref else "") + "...")
     py_files = _list_python_files(repo, token, ref)
     print(f"[indexer] Found {len(py_files)} .py files (cap: {MAX_FILES})")
@@ -370,6 +395,10 @@ def index_repo(
         if (i + 1) % 50 == 0:
             print(f"[indexer]   {i+1}/{len(py_files)} files processed...")
 
+    try:
+        store.delete_collection(_partial_name(repo, ref))
+    except Exception:  # noqa: BLE001 - marker already gone
+        pass
     print(f"[indexer] Done. {files_indexed} files, {chunks_indexed} chunks indexed.")
     return {
         "repo":           repo,

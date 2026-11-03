@@ -18,7 +18,7 @@ from src.checks.smell_catalog import (
 )
 from src.ingestion.diff_defs import added_definitions, added_line_numbers
 from src.ingestion.pr_parser import PRFile, PullRequest, fetch_pr_from_url, fetch_source_at
-from src.llm.aggregator import Finding, keep_evidenced
+from src.llm.aggregator import Finding, is_substantive, keep_evidenced
 from src.llm.client import PROVIDERS, chat_json, use_provider
 from src.llm.prompts import HOT_PATH_SYSTEM, build_hot_path_prompt, is_test_file
 
@@ -134,6 +134,9 @@ def check_hot_path_smells(
                 findings.append(finding)
 
     kept, dropped = keep_evidenced(findings, patches)
+    weak = [f for f in kept if not is_substantive(f)]
+    kept = [f for f in kept if is_substantive(f)]
+    dropped = dropped + weak
     if report is not None:
         report.update(files_considered=len(files), llm_calls=calls,
                       raw_findings=len(findings), dropped=len(dropped),
