@@ -1,0 +1,52 @@
+{
+  "pr": {
+    "repo": "django/django",
+    "number": 12396,
+    "title": "Fixed #31055 -- Made constraint checks support databases aware. ",
+    "files": 14
+  },
+  "provider": "local",
+  "llm_stats": {
+    "local": {
+      "calls": 5,
+      "prompt_tokens": 7837,
+      "completion_tokens": 681,
+      "seconds": 27.053267499999947,
+      "model": "qwen2.5-7b:latest"
+    }
+  },
+  "dropped_by_final_filter": 0,
+  "checks": [
+    {
+      "name": "missing_tests",
+      "status": "ok",
+      "note": "",
+      "seconds": 27.1,
+      "metrics": {
+        "files_sent": 5,
+        "raw_findings": 5,
+        "dropped": 3
+      },
+      "findings": [
+        {
+          "check": "missing_tests",
+          "filename": "django/core/management/commands/migrate.py",
+          "evidence": "self.check(databases=[database])",
+          "message": "System checks are not exercised when `--skip-checks` is not set.",
+          "related": "",
+          "kind": "",
+          "severity": ""
+        },
+        {
+          "check": "missing_tests",
+          "filename": "django/core/checks/database.py",
+          "evidence": "check_database_backends(databases=None, **kwargs)",
+          "message": "The function now accepts an optional `databases` parameter, but it is not tested.",
+          "related": "",
+          "kind": "",
+          "severity": ""
+        }
+      ]
+    }
+  ]
+}

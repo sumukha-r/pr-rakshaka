@@ -1,0 +1,43 @@
+{
+  "pr": {
+    "repo": "apache/airflow",
+    "number": 13018,
+    "title": "Add project-id to client inside bigquery hook update-table",
+    "files": 1
+  },
+  "provider": "local",
+  "llm_stats": {
+    "local": {
+      "calls": 1,
+      "prompt_tokens": 780,
+      "completion_tokens": 113,
+      "seconds": 7.657687500000975,
+      "model": "qwen2.5-7b:latest"
+    }
+  },
+  "dropped_by_final_filter": 0,
+  "checks": [
+    {
+      "name": "missing_tests",
+      "status": "ok",
+      "note": "",
+      "seconds": 7.7,
+      "metrics": {
+        "files_sent": 1,
+        "raw_findings": 1,
+        "dropped": 0
+      },
+      "findings": [
+        {
+          "check": "missing_tests",
+          "filename": "airflow/providers/google/cloud/hooks/bigquery.py",
+          "evidence": "table_object = self.get_client(project_id=project_id).update_table(table=table, fields=fields)",
+          "message": "The behavior of passing `project_id` to the `get_client` method is untested.",
+          "related": "",
+          "kind": "",
+          "severity": ""
+        }
+      ]
+    }
+  ]
+}

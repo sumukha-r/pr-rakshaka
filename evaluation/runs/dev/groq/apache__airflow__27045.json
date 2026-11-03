@@ -1,0 +1,59 @@
+{
+  "pr": {
+    "repo": "apache/airflow",
+    "number": 27045,
+    "title": "Allow and prefer non-prefixed extra fields for GrpcHook",
+    "files": 3
+  },
+  "provider": "groq",
+  "llm_stats": {
+    "groq": {
+      "calls": 2,
+      "prompt_tokens": 3380,
+      "completion_tokens": 368,
+      "seconds": 27.21708020000051,
+      "model": "openai/gpt-oss-20b"
+    }
+  },
+  "dropped_by_final_filter": 0,
+  "checks": [
+    {
+      "name": "missing_tests",
+      "status": "ok",
+      "note": "",
+      "seconds": 11.9,
+      "metrics": {
+        "files_sent": 1,
+        "raw_findings": 1,
+        "dropped": 0
+      },
+      "findings": [
+        {
+          "check": "missing_tests",
+          "filename": "airflow/providers/grpc/hooks/grpc.py",
+          "evidence": "raise ValueError(\n                f\"Got prefixed name {field_name}; please remove the '{backcompat_prefix}' prefix \"\n                \"when using this method.\"\n            )",
+          "message": "New error handling for prefixed field names in _get_field is not covered by tests.",
+          "related": "",
+          "kind": "",
+          "severity": ""
+        }
+      ]
+    },
+    {
+      "name": "smell",
+      "status": "ok",
+      "note": "",
+      "seconds": 16.0,
+      "metrics": {
+        "files_considered": 1,
+        "llm_calls": 1,
+        "raw_findings": 0,
+        "dropped": 0,
+        "kept_findings": 0,
+        "radon_signals": 0,
+        "files_fetched": 1
+      },
+      "findings": []
+    }
+  ]
+}

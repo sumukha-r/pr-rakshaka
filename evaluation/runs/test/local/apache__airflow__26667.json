@@ -1,0 +1,56 @@
+{
+  "pr": {
+    "repo": "apache/airflow",
+    "number": 26667,
+    "title": "Simplify RTIF.delete_old_records()",
+    "files": 2
+  },
+  "provider": "local",
+  "llm_stats": {
+    "local": {
+      "calls": 4,
+      "prompt_tokens": 5807,
+      "completion_tokens": 411,
+      "seconds": 19.319937400001436,
+      "model": "qwen2.5-7b:latest"
+    }
+  },
+  "dropped_by_final_filter": 0,
+  "checks": [
+    {
+      "name": "reuse",
+      "status": "ok",
+      "note": "",
+      "seconds": 9.8,
+      "metrics": {
+        "defs_found": 4,
+        "blocks_found": 3,
+        "files_fetched": 2,
+        "with_candidates": 2,
+        "exact": 0,
+        "within_pr": 0,
+        "llm_calls": 2,
+        "retries": 0,
+        "raw_findings": 0,
+        "dropped": 0
+      },
+      "findings": []
+    },
+    {
+      "name": "smell",
+      "status": "ok",
+      "note": "",
+      "seconds": 13.0,
+      "metrics": {
+        "files_considered": 2,
+        "llm_calls": 2,
+        "raw_findings": 1,
+        "dropped": 1,
+        "kept_findings": 0,
+        "radon_signals": 0,
+        "files_fetched": 2
+      },
+      "findings": []
+    }
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "pr": {
+    "repo": "apache/airflow",
+    "number": 27236,
+    "title": "Typecast bigquery job response col value",
+    "files": 1
+  },
+  "provider": "groq",
+  "llm_stats": {
+    "groq": {
+      "calls": 1,
+      "prompt_tokens": 894,
+      "completion_tokens": 174,
+      "seconds": 3.76973739999994,
+      "model": "openai/gpt-oss-20b"
+    }
+  },
+  "dropped_by_final_filter": 0,
+  "checks": [
+    {
+      "name": "missing_tests",
+      "status": "ok",
+      "note": "",
+      "seconds": 3.8,
+      "metrics": {
+        "files_sent": 1,
+        "raw_findings": 1,
+        "dropped": 0
+      },
+      "findings": [
+        {
+          "check": "missing_tests",
+          "filename": "airflow/providers/google/cloud/hooks/bigquery.py",
+          "evidence": "typed_row = [_bq_cast(vs['v'], col_types[idx]) for idx, vs in enumerate(dict_row['f'])]",
+          "message": "New casting of BigQuery job response column values is not covered by any test.",
+          "related": "",
+          "kind": "",
+          "severity": ""
+        }
+      ]
+    }
+  ]
+}

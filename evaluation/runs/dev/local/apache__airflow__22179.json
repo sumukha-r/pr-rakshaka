@@ -1,0 +1,43 @@
+{
+  "pr": {
+    "repo": "apache/airflow",
+    "number": 22179,
+    "title": "Support Uploading Bigger Files to Google Drive",
+    "files": 1
+  },
+  "provider": "local",
+  "llm_stats": {
+    "local": {
+      "calls": 1,
+      "prompt_tokens": 767,
+      "completion_tokens": 77,
+      "seconds": 3.8959603999996943,
+      "model": "qwen2.5-7b:latest"
+    }
+  },
+  "dropped_by_final_filter": 0,
+  "checks": [
+    {
+      "name": "missing_tests",
+      "status": "ok",
+      "note": "",
+      "seconds": 3.9,
+      "metrics": {
+        "files_sent": 1,
+        "raw_findings": 1,
+        "dropped": 0
+      },
+      "findings": [
+        {
+          "check": "missing_tests",
+          "filename": "airflow/providers/google/suite/hooks/drive.py",
+          "evidence": "media = MediaFileUpload(local_location, resumable=True)",
+          "message": "Resumable upload functionality is untested.",
+          "related": "",
+          "kind": "",
+          "severity": ""
+        }
+      ]
+    }
+  ]
+}

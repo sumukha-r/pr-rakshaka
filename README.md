@@ -33,6 +33,25 @@ If there is no concrete evidence for a finding, nothing is said. The reviewer st
 
 ---
 
+## Evaluation
+
+The checks were measured on 68 real pull requests from Apache Airflow, scikit-learn and Django, split once into 34 dev PRs (used to tune prompts) and 34 sealed test PRs (run once at the end, nothing changed afterwards). Each PR is rebuilt at the commit the reviewer actually saw, and the reuse index is built at the PR's base commit. Labels come from human reviewers' own comments.
+
+Sealed test set, missing-tests check (the only check with enough data to rate):
+
+| Model | Recall | Precision (approx.) |
+|---|---|---|
+| Groq `gpt-oss-20b` | 88% (15/17) | 71% |
+| Local Qwen | 59% (10/17) | 69% |
+
+- **Reuse** raised no false alarm on 14 quiet PRs but found only 1 of 5 expected duplicates, so it needs work.
+- **Smell** has one scorable positive in the whole set, so no recall figure is claimed.
+- Test precision is approximate (findings judged quickly, in unfamiliar codebases), every number is a single run, and 12 PRs could not be rebuilt because GitHub no longer has their commits.
+
+Full tables, the debugging log (what real PRs exposed and how it was fixed), and the limitations: [`evaluation/RESULTS.md`](evaluation/RESULTS.md). To reproduce: [`evaluation/README.md`](evaluation/README.md).
+
+---
+
 ## Why
 
 Code review is the highest-leverage point to catch bad patterns before they compound. Most automated tools are linters, they match rules. pr-rakshaka makes judgments.
@@ -128,12 +147,14 @@ Run the offline unit tests (no keys, no GPU, no network) with `python -m pytest`
 | Report generator (`src/report/generator.py`, deterministic Markdown) | v1 |
 | Pipeline entry point (`main.py`) | v1 |
 | Streamlit UI (`app.py`) | v1 |
+| Evaluation on real PRs (`evaluation/`) | v1, results in `evaluation/RESULTS.md` |
 
 ## Known limitations
 
 - Python only: PRs that change no Python source files are skipped.
 - The reuse check needs the repository indexed first, and the index reflects the code at the time it was built.
-- The three checks have been tuned and measured on hand-written fixtures. An evaluation on real PRs with a held-out test set is in progress, so no accuracy numbers are claimed yet.
+- Measured on a small real-PR set (see Evaluation): the reuse and smell checks have too few positive cases to rate, and the reuse check missed most expected duplicates.
+- The smell check's quality gate does not catch every hedged finding, and test-infrastructure files can draw "not tested" findings. Both are v2 items.
 - Findings are leads for a human reviewer, not verdicts. Each one quotes the line it is based on so it can be checked quickly.
 
 ---

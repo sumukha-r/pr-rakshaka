@@ -1,0 +1,106 @@
+{
+  "pr": {
+    "repo": "apache/airflow",
+    "number": 26879,
+    "title": "Clean-ups around task-mapping code",
+    "files": 3
+  },
+  "provider": "local",
+  "llm_stats": {
+    "local": {
+      "calls": 4,
+      "prompt_tokens": 7266,
+      "completion_tokens": 674,
+      "seconds": 24.606587000003856,
+      "model": "qwen2.5-7b:latest"
+    }
+  },
+  "dropped_by_final_filter": 0,
+  "checks": [
+    {
+      "name": "missing_tests",
+      "status": "ok",
+      "note": "",
+      "seconds": 10.4,
+      "metrics": {
+        "files_sent": 2,
+        "raw_findings": 1,
+        "dropped": 0
+      },
+      "findings": [
+        {
+          "check": "missing_tests",
+          "filename": "airflow/models/mappedoperator.py",
+          "evidence": "def get_mapped_ti_count(self, run_id: str, *, session: Session) -> int | None:",
+          "message": "The new `get_mapped_ti_count` method is untested.",
+          "related": "",
+          "kind": "",
+          "severity": ""
+        }
+      ]
+    },
+    {
+      "name": "reuse",
+      "status": "ok",
+      "note": "",
+      "seconds": 1.9,
+      "metrics": {
+        "defs_found": 3,
+        "blocks_found": 3,
+        "files_fetched": 2,
+        "with_candidates": 0,
+        "exact": 0,
+        "within_pr": 0,
+        "llm_calls": 0,
+        "retries": 0,
+        "raw_findings": 0,
+        "dropped": 0
+      },
+      "findings": []
+    },
+    {
+      "name": "smell",
+      "status": "ok",
+      "note": "",
+      "seconds": 16.0,
+      "metrics": {
+        "files_considered": 2,
+        "llm_calls": 2,
+        "raw_findings": 3,
+        "dropped": 0,
+        "kept_findings": 3,
+        "radon_signals": 2,
+        "files_fetched": 2
+      },
+      "findings": [
+        {
+          "check": "smell",
+          "filename": "airflow/models/dagrun.py",
+          "evidence": "task.get_mapped_ti_count.cache_clear()  # type: ignore[attr-defined]",
+          "message": "The `cache_clear` method is called for each task, which may be repeated work if the cache is not reused across tasks.",
+          "related": "",
+          "kind": "repeated_work",
+          "severity": "low"
+        },
+        {
+          "check": "smell",
+          "filename": "airflow/models/dagrun.py",
+          "evidence": "task.get_mapped_ti_count(self.run_id, session=session)",
+          "message": "The `get_mapped_ti_count` method is called for each task, which may be repeated work if the result can be cached.",
+          "related": "",
+          "kind": "repeated_work",
+          "severity": "low"
+        },
+        {
+          "check": "smell",
+          "filename": "airflow/models/mappedoperator.py",
+          "evidence": "def get_mapped_ti_count(self, run_id: str, *, session: Session) -> int | None:",
+          "message": "The method `get_mapped_ti_count` is not cached, which could lead to repeated computation if it is called frequently.",
+          "related": "",
+          "kind": "repeated_computation",
+          "severity": "medium"
+        }
+      ]
+    }
+  ]
+}

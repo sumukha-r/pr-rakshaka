@@ -1,0 +1,33 @@
+{
+  "pr": {
+    "repo": "scikit-learn/scikit-learn",
+    "number": 16182,
+    "title": "BUG max_depth=1 should be decision stump in HistGradientBoosti\u2026",
+    "files": 4
+  },
+  "provider": "local",
+  "llm_stats": {
+    "local": {
+      "calls": 2,
+      "prompt_tokens": 2380,
+      "completion_tokens": 262,
+      "seconds": 10.444820499999878,
+      "model": "qwen2.5-7b:latest"
+    }
+  },
+  "dropped_by_final_filter": 0,
+  "checks": [
+    {
+      "name": "missing_tests",
+      "status": "ok",
+      "note": "",
+      "seconds": 10.4,
+      "metrics": {
+        "files_sent": 2,
+        "raw_findings": 2,
+        "dropped": 2
+      },
+      "findings": []
+    }
+  ]
+}

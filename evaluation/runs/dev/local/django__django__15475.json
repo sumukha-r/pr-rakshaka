@@ -1,0 +1,4 @@
+{
+  "error": "HTTPError: 404 Client Error: Not Found for url: https://api.github.com/repos/django/django/compare/24cc51f8fb62102a67d16cef1e0748d45afe25f4...68e779200b8971686de98fd8c3b1547b6fbaf4c8?per_page=100",
+  "checks": []
+}

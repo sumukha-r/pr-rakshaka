@@ -1,0 +1,43 @@
+{
+  "pr": {
+    "repo": "apache/airflow",
+    "number": 25110,
+    "title": "Adding Authentication to webhdfs sensor ",
+    "files": 1
+  },
+  "provider": "local",
+  "llm_stats": {
+    "local": {
+      "calls": 1,
+      "prompt_tokens": 920,
+      "completion_tokens": 102,
+      "seconds": 4.476936299999579,
+      "model": "qwen2.5-7b:latest"
+    }
+  },
+  "dropped_by_final_filter": 0,
+  "checks": [
+    {
+      "name": "missing_tests",
+      "status": "ok",
+      "note": "",
+      "seconds": 4.5,
+      "metrics": {
+        "files_sent": 1,
+        "raw_findings": 1,
+        "dropped": 0
+      },
+      "findings": [
+        {
+          "check": "missing_tests",
+          "filename": "airflow/providers/apache/hdfs/hooks/webhdfs.py",
+          "evidence": "if password is not None:\n            session.auth = (login, password)",
+          "message": "Password-based authentication is untested.",
+          "related": "",
+          "kind": "",
+          "severity": ""
+        }
+      ]
+    }
+  ]
+}

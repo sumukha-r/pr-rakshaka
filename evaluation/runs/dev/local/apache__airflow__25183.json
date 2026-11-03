@@ -1,0 +1,52 @@
+{
+  "pr": {
+    "repo": "apache/airflow",
+    "number": 25183,
+    "title": "Add auth_type to LivyHook",
+    "files": 3
+  },
+  "provider": "local",
+  "llm_stats": {
+    "local": {
+      "calls": 3,
+      "prompt_tokens": 2909,
+      "completion_tokens": 310,
+      "seconds": 13.485273499999948,
+      "model": "qwen2.5-7b:latest"
+    }
+  },
+  "dropped_by_final_filter": 0,
+  "checks": [
+    {
+      "name": "missing_tests",
+      "status": "ok",
+      "note": "",
+      "seconds": 13.5,
+      "metrics": {
+        "files_sent": 3,
+        "raw_findings": 3,
+        "dropped": 1
+      },
+      "findings": [
+        {
+          "check": "missing_tests",
+          "filename": "airflow/providers/apache/livy/operators/livy.py",
+          "evidence": "self._livy_conn_auth_type = livy_conn_auth_type",
+          "message": "Setting the auth type for the Livy Connection is untested.",
+          "related": "",
+          "kind": "",
+          "severity": ""
+        },
+        {
+          "check": "missing_tests",
+          "filename": "airflow/providers/apache/livy/hooks/livy.py",
+          "evidence": ":param auth_type: The auth type for the service.",
+          "message": "The `auth_type` parameter is untested.",
+          "related": "",
+          "kind": "",
+          "severity": ""
+        }
+      ]
+    }
+  ]
+}

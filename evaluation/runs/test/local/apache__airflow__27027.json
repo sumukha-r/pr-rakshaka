@@ -1,0 +1,97 @@
+{
+  "pr": {
+    "repo": "apache/airflow",
+    "number": 27027,
+    "title": "Add mapped task group info to serialization",
+    "files": 5
+  },
+  "provider": "local",
+  "llm_stats": {
+    "local": {
+      "calls": 6,
+      "prompt_tokens": 10043,
+      "completion_tokens": 781,
+      "seconds": 31.637829499999498,
+      "model": "qwen2.5-7b:latest"
+    }
+  },
+  "dropped_by_final_filter": 0,
+  "checks": [
+    {
+      "name": "missing_tests",
+      "status": "ok",
+      "note": "",
+      "seconds": 16.3,
+      "metrics": {
+        "files_sent": 3,
+        "raw_findings": 4,
+        "dropped": 2
+      },
+      "findings": [
+        {
+          "check": "missing_tests",
+          "filename": "airflow/serialization/serialized_objects.py",
+          "evidence": "return TaskGroupSerialization.serialize_task_group(var)",
+          "message": "The serialization of `MappedTaskGroup` is untested.",
+          "related": "",
+          "kind": "",
+          "severity": ""
+        },
+        {
+          "check": "missing_tests",
+          "filename": "airflow/utils/task_group.py",
+          "evidence": "return DagAttributeTypes.TASK_GROUP, TaskGroupSerialization.serialize_task_group(self)",
+          "message": "The new `TaskGroupSerialization.serialize_task_group` implementation is untested.",
+          "related": "",
+          "kind": "",
+          "severity": ""
+        }
+      ]
+    },
+    {
+      "name": "reuse",
+      "status": "ok",
+      "note": "",
+      "seconds": 3.1,
+      "metrics": {
+        "defs_found": 3,
+        "blocks_found": 3,
+        "files_fetched": 3,
+        "with_candidates": 0,
+        "exact": 0,
+        "within_pr": 0,
+        "llm_calls": 0,
+        "retries": 0,
+        "raw_findings": 0,
+        "dropped": 0
+      },
+      "findings": []
+    },
+    {
+      "name": "smell",
+      "status": "ok",
+      "note": "",
+      "seconds": 18.3,
+      "metrics": {
+        "files_considered": 3,
+        "llm_calls": 3,
+        "raw_findings": 2,
+        "dropped": 1,
+        "kept_findings": 1,
+        "radon_signals": 3,
+        "files_fetched": 3
+      },
+      "findings": [
+        {
+          "check": "smell",
+          "filename": "airflow/serialization/serialized_objects.py",
+          "evidence": "expand_input = task_group._expand_input",
+          "message": "The `_expand_input` attribute is being accessed for each task group, which may be repeated work if `_expand_input` is not cached.",
+          "related": "",
+          "kind": "repeated_work",
+          "severity": "low"
+        }
+      ]
+    }
+  ]
+}

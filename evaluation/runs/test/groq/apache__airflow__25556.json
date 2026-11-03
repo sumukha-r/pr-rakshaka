@@ -1,0 +1,43 @@
+{
+  "pr": {
+    "repo": "apache/airflow",
+    "number": 25556,
+    "title": "Cache the custom secrets backend so the same instance gets re-used",
+    "files": 2
+  },
+  "provider": "groq",
+  "llm_stats": {
+    "groq": {
+      "calls": 1,
+      "prompt_tokens": 1027,
+      "completion_tokens": 210,
+      "seconds": 0.7502786000004562,
+      "model": "openai/gpt-oss-20b"
+    }
+  },
+  "dropped_by_final_filter": 0,
+  "checks": [
+    {
+      "name": "missing_tests",
+      "status": "ok",
+      "note": "",
+      "seconds": 0.8,
+      "metrics": {
+        "files_sent": 1,
+        "raw_findings": 1,
+        "dropped": 0
+      },
+      "findings": [
+        {
+          "check": "missing_tests",
+          "filename": "airflow/configuration.py",
+          "evidence": "return _custom_secrets_backend(secrets_backend_cls)",
+          "message": "Caching of the custom secrets backend is not exercised by any test.",
+          "related": "",
+          "kind": "",
+          "severity": ""
+        }
+      ]
+    }
+  ]
+}

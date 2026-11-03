@@ -1,0 +1,43 @@
+{
+  "pr": {
+    "repo": "apache/airflow",
+    "number": 13990,
+    "title": "Fix the AttributeError with text field in TelegramOperator",
+    "files": 1
+  },
+  "provider": "groq",
+  "llm_stats": {
+    "groq": {
+      "calls": 1,
+      "prompt_tokens": 911,
+      "completion_tokens": 199,
+      "seconds": 1.0250862000002599,
+      "model": "openai/gpt-oss-20b"
+    }
+  },
+  "dropped_by_final_filter": 0,
+  "checks": [
+    {
+      "name": "missing_tests",
+      "status": "ok",
+      "note": "",
+      "seconds": 1.3,
+      "metrics": {
+        "files_sent": 1,
+        "raw_findings": 1,
+        "dropped": 0
+      },
+      "findings": [
+        {
+          "check": "missing_tests",
+          "filename": "airflow/providers/telegram/operators/telegram.py",
+          "evidence": "if self.text:",
+          "message": "Conditional setting of the 'text' key in execute is untested.",
+          "related": "",
+          "kind": "",
+          "severity": ""
+        }
+      ]
+    }
+  ]
+}

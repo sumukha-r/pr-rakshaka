@@ -1,0 +1,49 @@
+{
+  "pr": {
+    "repo": "apache/airflow",
+    "number": 27044,
+    "title": "Allow and prefer non-prefixed extra fields for JdbcHook",
+    "files": 4
+  },
+  "provider": "local",
+  "llm_stats": {
+    "local": {
+      "calls": 2,
+      "prompt_tokens": 3178,
+      "completion_tokens": 331,
+      "seconds": 12.046975799999927,
+      "model": "qwen2.5-7b:latest"
+    }
+  },
+  "dropped_by_final_filter": 0,
+  "checks": [
+    {
+      "name": "missing_tests",
+      "status": "ok",
+      "note": "",
+      "seconds": 5.6,
+      "metrics": {
+        "files_sent": 1,
+        "raw_findings": 1,
+        "dropped": 1
+      },
+      "findings": []
+    },
+    {
+      "name": "smell",
+      "status": "ok",
+      "note": "",
+      "seconds": 7.2,
+      "metrics": {
+        "files_considered": 1,
+        "llm_calls": 1,
+        "raw_findings": 1,
+        "dropped": 1,
+        "kept_findings": 0,
+        "radon_signals": 0,
+        "files_fetched": 1
+      },
+      "findings": []
+    }
+  ]
+}

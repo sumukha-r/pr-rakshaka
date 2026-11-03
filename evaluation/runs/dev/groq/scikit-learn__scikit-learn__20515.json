@@ -1,0 +1,43 @@
+{
+  "pr": {
+    "repo": "scikit-learn/scikit-learn",
+    "number": 20515,
+    "title": "FIX avoid `isotonic_regression` to modify `sample_weight` in-place",
+    "files": 1
+  },
+  "provider": "groq",
+  "llm_stats": {
+    "groq": {
+      "calls": 1,
+      "prompt_tokens": 889,
+      "completion_tokens": 209,
+      "seconds": 5.7127432000002045,
+      "model": "openai/gpt-oss-20b"
+    }
+  },
+  "dropped_by_final_filter": 0,
+  "checks": [
+    {
+      "name": "missing_tests",
+      "status": "ok",
+      "note": "",
+      "seconds": 5.7,
+      "metrics": {
+        "files_sent": 1,
+        "raw_findings": 1,
+        "dropped": 0
+      },
+      "findings": [
+        {
+          "check": "missing_tests",
+          "filename": "sklearn/isotonic.py",
+          "evidence": "    sample_weight = _check_sample_weight(sample_weight, y, dtype=y.dtype, copy=True)",
+          "message": "New behavior: sample_weight is now copied to avoid in-place modification, but no test exercises this change.",
+          "related": "",
+          "kind": "",
+          "severity": ""
+        }
+      ]
+    }
+  ]
+}

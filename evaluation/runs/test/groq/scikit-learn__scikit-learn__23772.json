@@ -1,0 +1,43 @@
+{
+  "pr": {
+    "repo": "scikit-learn/scikit-learn",
+    "number": 23772,
+    "title": "MAINT Add one-sided set differences for clarity in param validation",
+    "files": 4
+  },
+  "provider": "groq",
+  "llm_stats": {
+    "groq": {
+      "calls": 3,
+      "prompt_tokens": 2882,
+      "completion_tokens": 585,
+      "seconds": 2.8983669000008376,
+      "model": "openai/gpt-oss-20b"
+    }
+  },
+  "dropped_by_final_filter": 0,
+  "checks": [
+    {
+      "name": "missing_tests",
+      "status": "ok",
+      "note": "",
+      "seconds": 2.9,
+      "metrics": {
+        "files_sent": 3,
+        "raw_findings": 2,
+        "dropped": 1
+      },
+      "findings": [
+        {
+          "check": "missing_tests",
+          "filename": "sklearn/discriminant_analysis.py",
+          "evidence": "\"dummy\": [Interval(Real, 0, None, closed=\"left\")],",
+          "message": "New parameter \"dummy\" added to LinearDiscriminantAnalysis param validation is not covered by tests.",
+          "related": "",
+          "kind": "",
+          "severity": ""
+        }
+      ]
+    }
+  ]
+}

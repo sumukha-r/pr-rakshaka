@@ -1,0 +1,43 @@
+{
+  "pr": {
+    "repo": "apache/airflow",
+    "number": 13647,
+    "title": "[AIRFLOW-6076] fix dag.cli() KeyError",
+    "files": 1
+  },
+  "provider": "groq",
+  "llm_stats": {
+    "groq": {
+      "calls": 1,
+      "prompt_tokens": 1320,
+      "completion_tokens": 250,
+      "seconds": 0.8355172000001403,
+      "model": "openai/gpt-oss-20b"
+    }
+  },
+  "dropped_by_final_filter": 0,
+  "checks": [
+    {
+      "name": "missing_tests",
+      "status": "ok",
+      "note": "",
+      "seconds": 0.8,
+      "metrics": {
+        "files_sent": 1,
+        "raw_findings": 1,
+        "dropped": 0
+      },
+      "findings": [
+        {
+          "check": "missing_tests",
+          "filename": "airflow/cli/cli_parser.py",
+          "evidence": "def _remove_dag_id_opt(command: ActionCommand):",
+          "message": "New function _remove_dag_id_opt that removes the ARG_DAG_ID option from commands, altering parser behavior without tests.",
+          "related": "",
+          "kind": "",
+          "severity": ""
+        }
+      ]
+    }
+  ]
+}

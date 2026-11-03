@@ -1,0 +1,68 @@
+{
+  "pr": {
+    "repo": "apache/airflow",
+    "number": 26805,
+    "title": "Add Batch Operator template fields",
+    "files": 2
+  },
+  "provider": "local",
+  "llm_stats": {
+    "local": {
+      "calls": 2,
+      "prompt_tokens": 2452,
+      "completion_tokens": 298,
+      "seconds": 10.95676549999962,
+      "model": "qwen2.5-7b:latest"
+    }
+  },
+  "dropped_by_final_filter": 0,
+  "checks": [
+    {
+      "name": "missing_tests",
+      "status": "ok",
+      "note": "",
+      "seconds": 6.1,
+      "metrics": {
+        "files_sent": 1,
+        "raw_findings": 4,
+        "dropped": 4
+      },
+      "findings": []
+    },
+    {
+      "name": "reuse",
+      "status": "ok",
+      "note": "",
+      "seconds": 0.8,
+      "metrics": {
+        "defs_found": 0,
+        "blocks_found": 0,
+        "files_fetched": 1,
+        "with_candidates": 0,
+        "exact": 0,
+        "within_pr": 0,
+        "llm_calls": 0,
+        "retries": 0,
+        "raw_findings": 0,
+        "dropped": 0
+      },
+      "findings": []
+    },
+    {
+      "name": "smell",
+      "status": "ok",
+      "note": "",
+      "seconds": 5.5,
+      "metrics": {
+        "files_considered": 1,
+        "llm_calls": 1,
+        "raw_findings": 0,
+        "dropped": 0,
+        "kept_findings": 0,
+        "radon_signals": 0,
+        "files_fetched": 1
+      },
+      "findings": []
+    }
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "pr": {
+    "repo": "scikit-learn/scikit-learn",
+    "number": 19847,
+    "title": "FIX BaseSuccessiveHalving class groups support",
+    "files": 1
+  },
+  "provider": "groq",
+  "llm_stats": {
+    "groq": {
+      "calls": 1,
+      "prompt_tokens": 852,
+      "completion_tokens": 198,
+      "seconds": 0.36416769999959797,
+      "model": "openai/gpt-oss-20b"
+    }
+  },
+  "dropped_by_final_filter": 0,
+  "checks": [
+    {
+      "name": "missing_tests",
+      "status": "ok",
+      "note": "",
+      "seconds": 0.4,
+      "metrics": {
+        "files_sent": 1,
+        "raw_findings": 1,
+        "dropped": 0
+      },
+      "findings": [
+        {
+          "check": "missing_tests",
+          "filename": "sklearn/model_selection/_search_successive_halving.py",
+          "evidence": "super().fit(X, y=y, groups=groups, **fit_params)",
+          "message": "BaseSuccessiveHalving now passes groups to the parent fit method, enabling group support, but no test covers this change.",
+          "related": "",
+          "kind": "",
+          "severity": ""
+        }
+      ]
+    }
+  ]
+}

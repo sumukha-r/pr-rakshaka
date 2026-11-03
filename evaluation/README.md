@@ -1,5 +1,7 @@
 # Evaluation on real pull requests
 
+Results, the debugging log and limitations: [`RESULTS.md`](RESULTS.md).
+
 The fixtures in `tests/integration/` were written by hand and the prompts were tuned against them, so
 they no longer say how the tool behaves on code it has never seen. This folder measures that on real,
 merged pull requests, with a dev set to tune against and a test set that is run once.

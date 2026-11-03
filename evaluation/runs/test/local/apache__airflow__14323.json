@@ -1,0 +1,40 @@
+{
+  "pr": {
+    "repo": "apache/airflow",
+    "number": 14323,
+    "title": "Scheduler should not fail when invalid executor_config is passed",
+    "files": 2
+  },
+  "provider": "local",
+  "llm_stats": {
+    "local": {
+      "calls": 1,
+      "prompt_tokens": 872,
+      "completion_tokens": 60,
+      "seconds": 3.8058451999986573,
+      "model": "qwen2.5-7b:latest"
+    }
+  },
+  "dropped_by_final_filter": 0,
+  "checks": [
+    {
+      "name": "reuse",
+      "status": "ok",
+      "note": "",
+      "seconds": 7.0,
+      "metrics": {
+        "defs_found": 1,
+        "blocks_found": 1,
+        "files_fetched": 1,
+        "with_candidates": 1,
+        "exact": 0,
+        "within_pr": 0,
+        "llm_calls": 1,
+        "retries": 0,
+        "raw_findings": 0,
+        "dropped": 0
+      },
+      "findings": []
+    }
+  ]
+}

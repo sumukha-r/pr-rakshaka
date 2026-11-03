@@ -1,0 +1,43 @@
+{
+  "pr": {
+    "repo": "apache/airflow",
+    "number": 24943,
+    "title": "Added exception catching to send default email if template file raises any exception",
+    "files": 1
+  },
+  "provider": "local",
+  "llm_stats": {
+    "local": {
+      "calls": 1,
+      "prompt_tokens": 828,
+      "completion_tokens": 97,
+      "seconds": 4.380538699999761,
+      "model": "qwen2.5-7b:latest"
+    }
+  },
+  "dropped_by_final_filter": 0,
+  "checks": [
+    {
+      "name": "missing_tests",
+      "status": "ok",
+      "note": "",
+      "seconds": 4.4,
+      "metrics": {
+        "files_sent": 1,
+        "raw_findings": 1,
+        "dropped": 0
+      },
+      "findings": [
+        {
+          "check": "missing_tests",
+          "filename": "airflow/models/taskinstance.py",
+          "evidence": "self.log.exception(f\"Error while using email template '{path}'. Using defaults...\")",
+          "message": "Exception handling for email template file reading is untested",
+          "related": "",
+          "kind": "",
+          "severity": ""
+        }
+      ]
+    }
+  ]
+}

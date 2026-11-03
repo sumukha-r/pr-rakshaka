@@ -1,0 +1,70 @@
+{
+  "pr": {
+    "repo": "django/django",
+    "number": 12396,
+    "title": "Fixed #31055 -- Made constraint checks support databases aware. ",
+    "files": 14
+  },
+  "provider": "groq",
+  "llm_stats": {
+    "groq": {
+      "calls": 5,
+      "prompt_tokens": 8222,
+      "completion_tokens": 1004,
+      "seconds": 51.964814099999785,
+      "model": "openai/gpt-oss-20b"
+    }
+  },
+  "dropped_by_final_filter": 0,
+  "checks": [
+    {
+      "name": "missing_tests",
+      "status": "ok",
+      "note": "",
+      "seconds": 52.0,
+      "metrics": {
+        "files_sent": 5,
+        "raw_findings": 4,
+        "dropped": 0
+      },
+      "findings": [
+        {
+          "check": "missing_tests",
+          "filename": "django/core/management/commands/migrate.py",
+          "evidence": "self.check(databases=[database])",
+          "message": "Running system checks in migrate unless --skip-checks is specified is untested.",
+          "related": "",
+          "kind": "",
+          "severity": ""
+        },
+        {
+          "check": "missing_tests",
+          "filename": "django/core/management/commands/check.py",
+          "evidence": "parser.add_argument(\n            '--database', action='append', dest='databases',\n            help='Run database related checks against these aliases.',\n        )",
+          "message": "New command option to specify databases for checks is not exercised by any test.",
+          "related": "",
+          "kind": "",
+          "severity": ""
+        },
+        {
+          "check": "missing_tests",
+          "filename": "django/core/management/base.py",
+          "evidence": "databases=databases",
+          "message": "The new databases argument to checks.run_checks is not exercised by any test.",
+          "related": "",
+          "kind": "",
+          "severity": ""
+        },
+        {
+          "check": "missing_tests",
+          "filename": "django/db/models/base.py",
+          "evidence": "def _check_constraints(cls, databases):",
+          "message": "New constraint check logic that accepts a databases list is not exercised by any test.",
+          "related": "",
+          "kind": "",
+          "severity": ""
+        }
+      ]
+    }
+  ]
+}

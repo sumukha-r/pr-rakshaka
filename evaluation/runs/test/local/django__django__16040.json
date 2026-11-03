@@ -1,0 +1,43 @@
+{
+  "pr": {
+    "repo": "django/django",
+    "number": 16040,
+    "title": "Refs #28333 -- Explicitly ordered outer qualify query on window filtering.",
+    "files": 1
+  },
+  "provider": "local",
+  "llm_stats": {
+    "local": {
+      "calls": 1,
+      "prompt_tokens": 1351,
+      "completion_tokens": 117,
+      "seconds": 4.973482299999887,
+      "model": "qwen2.5-7b:latest"
+    }
+  },
+  "dropped_by_final_filter": 0,
+  "checks": [
+    {
+      "name": "missing_tests",
+      "status": "ok",
+      "note": "",
+      "seconds": 5.0,
+      "metrics": {
+        "files_sent": 1,
+        "raw_findings": 1,
+        "dropped": 0
+      },
+      "findings": [
+        {
+          "check": "missing_tests",
+          "filename": "django/db/models/sql/compiler.py",
+          "evidence": "collect_replacements(order_by_expr.get_source_expressions())",
+          "message": "Order by expressions are processed separately and their replacements are not directly used in the qualify SQL generation.",
+          "related": "",
+          "kind": "",
+          "severity": ""
+        }
+      ]
+    }
+  ]
+}

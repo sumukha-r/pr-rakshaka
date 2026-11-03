@@ -1,0 +1,43 @@
+{
+  "pr": {
+    "repo": "django/django",
+    "number": 14532,
+    "title": "Fixed #32559 -- Added step argument to FloatField.",
+    "files": 6
+  },
+  "provider": "groq",
+  "llm_stats": {
+    "groq": {
+      "calls": 2,
+      "prompt_tokens": 3101,
+      "completion_tokens": 456,
+      "seconds": 24.576313000000027,
+      "model": "openai/gpt-oss-20b"
+    }
+  },
+  "dropped_by_final_filter": 0,
+  "checks": [
+    {
+      "name": "missing_tests",
+      "status": "ok",
+      "note": "",
+      "seconds": 24.6,
+      "metrics": {
+        "files_sent": 2,
+        "raw_findings": 1,
+        "dropped": 0
+      },
+      "findings": [
+        {
+          "check": "missing_tests",
+          "filename": "django/core/validators.py",
+          "evidence": "class StepValueValidator(BaseValidator):",
+          "message": "FloatField step argument handling is not covered by any test.",
+          "related": "",
+          "kind": "",
+          "severity": ""
+        }
+      ]
+    }
+  ]
+}

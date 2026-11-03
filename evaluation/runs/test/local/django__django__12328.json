@@ -1,0 +1,56 @@
+{
+  "pr": {
+    "repo": "django/django",
+    "number": 12328,
+    "title": "Used constant instead of hard-coded value for recursive relationship.",
+    "files": 1
+  },
+  "provider": "local",
+  "llm_stats": {
+    "local": {
+      "calls": 1,
+      "prompt_tokens": 2179,
+      "completion_tokens": 72,
+      "seconds": 4.1260794999998325,
+      "model": "qwen2.5-7b:latest"
+    }
+  },
+  "dropped_by_final_filter": 0,
+  "checks": [
+    {
+      "name": "reuse",
+      "status": "ok",
+      "note": "",
+      "seconds": 1.0,
+      "metrics": {
+        "defs_found": 4,
+        "blocks_found": 4,
+        "files_fetched": 1,
+        "with_candidates": 0,
+        "exact": 0,
+        "within_pr": 0,
+        "llm_calls": 0,
+        "retries": 0,
+        "raw_findings": 0,
+        "dropped": 0
+      },
+      "findings": []
+    },
+    {
+      "name": "smell",
+      "status": "ok",
+      "note": "",
+      "seconds": 5.1,
+      "metrics": {
+        "files_considered": 1,
+        "llm_calls": 1,
+        "raw_findings": 0,
+        "dropped": 0,
+        "kept_findings": 0,
+        "radon_signals": 2,
+        "files_fetched": 1
+      },
+      "findings": []
+    }
+  ]
+}

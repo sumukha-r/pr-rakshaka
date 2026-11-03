@@ -1,0 +1,42 @@
+{
+  "pr": {
+    "repo": "apache/airflow",
+    "number": 27070,
+    "title": "Allow and prefer non-prefixed extra fields for slack hooks",
+    "files": 8
+  },
+  "provider": "groq",
+  "llm_stats": {},
+  "dropped_by_final_filter": 0,
+  "checks": [
+    {
+      "name": "reuse",
+      "status": "ok",
+      "note": "",
+      "seconds": 2.1,
+      "metrics": {
+        "defs_found": 3,
+        "blocks_found": 1,
+        "files_fetched": 3,
+        "with_candidates": 0,
+        "exact": 0,
+        "within_pr": 1,
+        "llm_calls": 0,
+        "retries": 0,
+        "raw_findings": 0,
+        "dropped": 0
+      },
+      "findings": [
+        {
+          "check": "reuse",
+          "filename": "airflow/providers/slack/hooks/slack_webhook.py",
+          "evidence": "def _ensure_prefixes(conn_type):",
+          "message": "`_ensure_prefixes` has exactly the same logic as `_ensure_prefixes`, which this PR also adds in airflow/providers/slack/hooks/slack.py; only names, type hints or comments differ. Keep one and reuse it.",
+          "related": "airflow/providers/slack/hooks/slack.py:40-65 def _ensure_prefixes (added in this PR)",
+          "kind": "structural_duplicate",
+          "severity": ""
+        }
+      ]
+    }
+  ]
+}

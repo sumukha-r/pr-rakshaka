@@ -1,0 +1,43 @@
+{
+  "pr": {
+    "repo": "apache/airflow",
+    "number": 23961,
+    "title": "Support impersonation service account parameter for Dataflow runner",
+    "files": 2
+  },
+  "provider": "groq",
+  "llm_stats": {
+    "groq": {
+      "calls": 2,
+      "prompt_tokens": 1953,
+      "completion_tokens": 341,
+      "seconds": 1.367340900000272,
+      "model": "openai/gpt-oss-20b"
+    }
+  },
+  "dropped_by_final_filter": 0,
+  "checks": [
+    {
+      "name": "missing_tests",
+      "status": "ok",
+      "note": "",
+      "seconds": 1.4,
+      "metrics": {
+        "files_sent": 2,
+        "raw_findings": 1,
+        "dropped": 0
+      },
+      "findings": [
+        {
+          "check": "missing_tests",
+          "filename": "airflow/providers/apache/beam/operators/beam.py",
+          "evidence": "pipeline_options[\"impersonateServiceAccount\"] = \",\".join(\n                    self.dataflow_config.impersonation_chain\n                )",
+          "message": "New impersonation chain handling in pipeline options is not tested.",
+          "related": "",
+          "kind": "",
+          "severity": ""
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "pr": {
+    "repo": "django/django",
+    "number": 15521,
+    "title": "Fixed #33565 -- Improved locale format validation for the makemessage\u2026",
+    "files": 4
+  },
+  "provider": "local",
+  "llm_stats": {
+    "local": {
+      "calls": 1,
+      "prompt_tokens": 1308,
+      "completion_tokens": 101,
+      "seconds": 4.572725199999695,
+      "model": "qwen2.5-7b:latest"
+    }
+  },
+  "dropped_by_final_filter": 0,
+  "checks": [
+    {
+      "name": "missing_tests",
+      "status": "ok",
+      "note": "",
+      "seconds": 4.6,
+      "metrics": {
+        "files_sent": 1,
+        "raw_findings": 1,
+        "dropped": 0
+      },
+      "findings": [
+        {
+          "check": "missing_tests",
+          "filename": "django/core/management/commands/makemessages.py",
+          "evidence": "if not is_valid_locale(locale):",
+          "message": "The handling of invalid locales is untested.",
+          "related": "",
+          "kind": "",
+          "severity": ""
+        }
+      ]
+    }
+  ]
+}

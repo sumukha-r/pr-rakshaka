@@ -1,0 +1,52 @@
+{
+  "pr": {
+    "repo": "scikit-learn/scikit-learn",
+    "number": 20312,
+    "title": "FIX avoid overflow in adjusted_rand_score with large amount data",
+    "files": 1
+  },
+  "provider": "local",
+  "llm_stats": {
+    "local": {
+      "calls": 1,
+      "prompt_tokens": 773,
+      "completion_tokens": 190,
+      "seconds": 6.207121899999947,
+      "model": "qwen2.5-7b:latest"
+    }
+  },
+  "dropped_by_final_filter": 0,
+  "checks": [
+    {
+      "name": "missing_tests",
+      "status": "ok",
+      "note": "",
+      "seconds": 6.2,
+      "metrics": {
+        "files_sent": 1,
+        "raw_findings": 4,
+        "dropped": 0
+      },
+      "findings": [
+        {
+          "check": "missing_tests",
+          "filename": "sklearn/metrics/cluster/_supervised.py",
+          "evidence": "tn = int(tn)",
+          "message": "No test covers the conversion of `tn` to an integer.",
+          "related": "",
+          "kind": "",
+          "severity": ""
+        },
+        {
+          "check": "missing_tests",
+          "filename": "sklearn/metrics/cluster/_supervised.py",
+          "evidence": "fp = int(fp)",
+          "message": "No test covers the conversion of `fp` to an integer.",
+          "related": "",
+          "kind": "",
+          "severity": ""
+        }
+      ]
+    }
+  ]
+}

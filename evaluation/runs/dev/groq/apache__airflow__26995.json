@@ -1,0 +1,49 @@
+{
+  "pr": {
+    "repo": "apache/airflow",
+    "number": 26995,
+    "title": "No extra__conn_type__ prefix required for UI behaviors",
+    "files": 3
+  },
+  "provider": "groq",
+  "llm_stats": {
+    "groq": {
+      "calls": 2,
+      "prompt_tokens": 3677,
+      "completion_tokens": 256,
+      "seconds": 30.452570099999775,
+      "model": "openai/gpt-oss-20b"
+    }
+  },
+  "dropped_by_final_filter": 0,
+  "checks": [
+    {
+      "name": "missing_tests",
+      "status": "ok",
+      "note": "",
+      "seconds": 11.9,
+      "metrics": {
+        "files_sent": 1,
+        "raw_findings": 0,
+        "dropped": 0
+      },
+      "findings": []
+    },
+    {
+      "name": "smell",
+      "status": "ok",
+      "note": "",
+      "seconds": 19.3,
+      "metrics": {
+        "files_considered": 1,
+        "llm_calls": 1,
+        "raw_findings": 0,
+        "dropped": 0,
+        "kept_findings": 0,
+        "radon_signals": 1,
+        "files_fetched": 1
+      },
+      "findings": []
+    }
+  ]
+}

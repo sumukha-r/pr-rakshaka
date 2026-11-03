@@ -1,0 +1,32 @@
+{
+  "pr": {
+    "repo": "scikit-learn/scikit-learn",
+    "number": 13467,
+    "title": "Implement RMSE (root-mean-square error) metric and scorer",
+    "files": 4
+  },
+  "provider": "local",
+  "llm_stats": {},
+  "dropped_by_final_filter": 0,
+  "checks": [
+    {
+      "name": "reuse",
+      "status": "ok",
+      "note": "",
+      "seconds": 2.8,
+      "metrics": {
+        "defs_found": 2,
+        "blocks_found": 2,
+        "files_fetched": 2,
+        "with_candidates": 0,
+        "exact": 0,
+        "within_pr": 0,
+        "llm_calls": 0,
+        "retries": 0,
+        "raw_findings": 0,
+        "dropped": 0
+      },
+      "findings": []
+    }
+  ]
+}

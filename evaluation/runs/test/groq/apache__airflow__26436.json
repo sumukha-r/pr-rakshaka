@@ -1,0 +1,43 @@
+{
+  "pr": {
+    "repo": "apache/airflow",
+    "number": 26436,
+    "title": "Rename schema to database in PostgresHook",
+    "files": 6
+  },
+  "provider": "groq",
+  "llm_stats": {
+    "groq": {
+      "calls": 2,
+      "prompt_tokens": 3305,
+      "completion_tokens": 344,
+      "seconds": 27.73520009999993,
+      "model": "openai/gpt-oss-20b"
+    }
+  },
+  "dropped_by_final_filter": 0,
+  "checks": [
+    {
+      "name": "missing_tests",
+      "status": "ok",
+      "note": "",
+      "seconds": 27.7,
+      "metrics": {
+        "files_sent": 2,
+        "raw_findings": 1,
+        "dropped": 0
+      },
+      "findings": [
+        {
+          "check": "missing_tests",
+          "filename": "airflow/providers/postgres/operators/postgres.py",
+          "evidence": "self.hook = PostgresHook(postgres_conn_id=self.postgres_conn_id, database=self.database)",
+          "message": "PostgresOperator now passes a database argument to PostgresHook, but no test exercises this change.",
+          "related": "",
+          "kind": "",
+          "severity": ""
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,52 @@
+{
+  "pr": {
+    "repo": "scikit-learn/scikit-learn",
+    "number": 22318,
+    "title": "FIX skip tests when estimator has non_deterministic tag",
+    "files": 1
+  },
+  "provider": "local",
+  "llm_stats": {
+    "local": {
+      "calls": 1,
+      "prompt_tokens": 785,
+      "completion_tokens": 162,
+      "seconds": 5.603929599999901,
+      "model": "qwen2.5-7b:latest"
+    }
+  },
+  "dropped_by_final_filter": 0,
+  "checks": [
+    {
+      "name": "missing_tests",
+      "status": "ok",
+      "note": "",
+      "seconds": 5.6,
+      "metrics": {
+        "files_sent": 1,
+        "raw_findings": 2,
+        "dropped": 0
+      },
+      "findings": [
+        {
+          "check": "missing_tests",
+          "filename": "sklearn/utils/estimator_checks.py",
+          "evidence": "yield check_methods_sample_order_invariance",
+          "message": "The `check_methods_sample_order_invariance` is untested when the estimator has the `non_deterministic` tag.",
+          "related": "",
+          "kind": "",
+          "severity": ""
+        },
+        {
+          "check": "missing_tests",
+          "filename": "sklearn/utils/estimator_checks.py",
+          "evidence": "yield check_methods_subset_invariance",
+          "message": "The `check_methods_subset_invariance` is untested when the estimator has the `non_deterministic` tag.",
+          "related": "",
+          "kind": "",
+          "severity": ""
+        }
+      ]
+    }
+  ]
+}

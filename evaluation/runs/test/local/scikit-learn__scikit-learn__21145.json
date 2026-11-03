@@ -1,0 +1,43 @@
+{
+  "pr": {
+    "repo": "scikit-learn/scikit-learn",
+    "number": 21145,
+    "title": "FIX avoid scalar/array boolean operation in _IffHasAttrDescriptor",
+    "files": 1
+  },
+  "provider": "local",
+  "llm_stats": {
+    "local": {
+      "calls": 1,
+      "prompt_tokens": 731,
+      "completion_tokens": 105,
+      "seconds": 4.533029800000804,
+      "model": "qwen2.5-7b:latest"
+    }
+  },
+  "dropped_by_final_filter": 0,
+  "checks": [
+    {
+      "name": "missing_tests",
+      "status": "ok",
+      "note": "",
+      "seconds": 4.5,
+      "metrics": {
+        "files_sent": 1,
+        "raw_findings": 1,
+        "dropped": 0
+      },
+      "findings": [
+        {
+          "check": "missing_tests",
+          "filename": "sklearn/utils/metaestimators.py",
+          "evidence": "getattr(delegate, self.attribute_name)",
+          "message": "The result of `getattr` is now explicitly checked before returning `True`",
+          "related": "",
+          "kind": "",
+          "severity": ""
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "pr": {
+    "repo": "apache/airflow",
+    "number": 13018,
+    "title": "Add project-id to client inside bigquery hook update-table",
+    "files": 1
+  },
+  "provider": "groq",
+  "llm_stats": {
+    "groq": {
+      "calls": 1,
+      "prompt_tokens": 867,
+      "completion_tokens": 183,
+      "seconds": 0.700608099999954,
+      "model": "openai/gpt-oss-20b"
+    }
+  },
+  "dropped_by_final_filter": 0,
+  "checks": [
+    {
+      "name": "missing_tests",
+      "status": "ok",
+      "note": "",
+      "seconds": 1.0,
+      "metrics": {
+        "files_sent": 1,
+        "raw_findings": 1,
+        "dropped": 0
+      },
+      "findings": [
+        {
+          "check": "missing_tests",
+          "filename": "airflow/providers/google/cloud/hooks/bigquery.py",
+          "evidence": "table_object = self.get_client(project_id=project_id).update_table(table=table, fields=fields)",
+          "message": "The hook now creates a client with a specified project_id, but no tests exercise this new behavior.",
+          "related": "",
+          "kind": "",
+          "severity": ""
+        }
+      ]
+    }
+  ]
+}

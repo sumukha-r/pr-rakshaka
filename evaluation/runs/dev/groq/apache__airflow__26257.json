@@ -1,0 +1,4 @@
+{
+  "error": "HTTPError: 404 Client Error: Not Found for url: https://api.github.com/repos/apache/airflow/compare/12b544502a55540476267859c8bc558195a7588e...a8c2d17c39581574fb224ba7b1038ae663d6e9c2?per_page=100",
+  "checks": []
+}

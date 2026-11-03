@@ -1,0 +1,43 @@
+{
+  "pr": {
+    "repo": "apache/airflow",
+    "number": 18211,
+    "title": "Support all Unix wildcards in S3KeySensor",
+    "files": 2
+  },
+  "provider": "groq",
+  "llm_stats": {
+    "groq": {
+      "calls": 2,
+      "prompt_tokens": 1745,
+      "completion_tokens": 442,
+      "seconds": 3.6555785999989894,
+      "model": "openai/gpt-oss-20b"
+    }
+  },
+  "dropped_by_final_filter": 0,
+  "checks": [
+    {
+      "name": "missing_tests",
+      "status": "ok",
+      "note": "",
+      "seconds": 3.7,
+      "metrics": {
+        "files_sent": 2,
+        "raw_findings": 2,
+        "dropped": 1
+      },
+      "findings": [
+        {
+          "check": "missing_tests",
+          "filename": "airflow/providers/amazon/aws/hooks/s3.py",
+          "evidence": "prefix = re.split(r'[\\[\\*\\?]', wildcard_key, 1)[0]",
+          "message": "get_wildcard_key now supports additional wildcard characters but no test covers this change.",
+          "related": "",
+          "kind": "",
+          "severity": ""
+        }
+      ]
+    }
+  ]
+}

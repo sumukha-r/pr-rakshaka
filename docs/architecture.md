@@ -23,8 +23,8 @@ flowchart TD
     B --> D3
     C --> D2
 
-    subgraph checks["⚙️ Three LLM Checks  —  Groq API · Llama 3.1"]
-        D1["🧪 Check 1 · Missing Tests\nDid new logic get a test written?\nPre-signal: pytest-cov coverage diff"]
+    subgraph checks["⚙️ Three LLM Checks  —  Groq gpt-oss-20b or local Ollama"]
+        D1["🧪 Check 1 · Missing Tests\nDid new logic get a test written?\nReads the test files the PR changes"]
         D2["♻️ Check 2 · Possible Reuse / Duplication\nDoes this already exist in the codebase?\nRAG context · cosine > 0.92 = duplication"]
         D3["🔥 Check 3 · Hot-path Smells\nN+1 I/O · repeated work in loops · quadratic scans · blocking calls in async\nPre-signal: radon complexity of the functions the diff touches"]
     end
@@ -33,7 +33,7 @@ flowchart TD
     D2 --> E
     D3 --> E
 
-    E["🛡️ Evidence Aggregator — Hallucination Filter (src/llm/aggregator.py)\nEvery finding must quote a line the diff ADDS\nApplied inside each check, then once more in main.py"]
+    E["🛡️ Evidence Aggregator — Hallucination Filter (src/llm/aggregator.py)\nEvery finding must quote a line the diff ADDS\nThen a quality gate drops bare-name and comment evidence and hedged smells\nApplied inside each check, then once more in main.py"]
 
     E --> F["📝 Report Generator\nDeterministic: renders only verified findings\nas a Markdown review comment (no extra LLM pass)"]
 
@@ -52,6 +52,8 @@ pr-rakshaka/
 ├── README.md                     # Project overview and usage notes
 ├── changelog.template
 ├── main.py                       # Runs the three checks, final evidence pass, writes the report
+├── app.py                        # Streamlit web app (demo limits when DEMO_MODE=1)
+├── pytest.ini
 ├── requirements.txt
 │
 ├── docs/
@@ -93,6 +95,18 @@ pr-rakshaka/
 │       ├── __init__.py
 │       └── generator.py          # CheckResult / Review dataclasses and render_markdown()
 │
+├── evaluation/                   # Real-PR evaluation (see evaluation/RESULTS.md)
+│   ├── eval_set.csv              # 68 labelled PRs, one row per check
+│   ├── split.json                # dev/test split, made once, with test fingerprint
+│   ├── collect_candidates.py     # find PRs where a reviewer raised a concern
+│   ├── label_candidates.py       # interactive labelling
+│   ├── snapshot.py               # rebuild a PR at the commit the reviewer saw
+│   ├── run_eval.py               # run the checks over a split (test needs --final, once)
+│   ├── score.py                  # recall, precision, silence; writes judgements.csv
+│   ├── runs/                     # saved per-PR reviews, by split and provider
+│   ├── judgements.csv            # blind verdicts on findings that matched no label
+│   └── RESULTS.md                # results, debugging log, limitations
+│
 └── tests/
     ├── __init__.py
     ├── unit/
@@ -101,13 +115,16 @@ pr-rakshaka/
     │   ├── test_compare_check3_fixtures.py
     │   ├── test_aggregator.py
     │   ├── test_report_generator.py
-    │   └── test_main.py
+    │   ├── test_main.py
+    │   ├── test_app.py
+    │   ├── test_evaluation.py
+    │   └── test_dev_fixes.py
     └── integration/
         ├── compare_check1.py     # Known-answer Check 1 fixtures
         ├── compare_check2.py     # Known-answer Check 2 fixtures
         └── compare_check3.py     # Known-answer Check 3 fixtures (under development)
 ```
-The module map is present to prvide and idea and may not describe the current repo structure accurately.
+The module map gives an idea of the layout and may lag the repo slightly.
 ---
 
 ## Key design decisions
@@ -124,8 +141,14 @@ Any finding not grounded in a specific line from the diff is dropped before it r
 **Deterministic report**
 The report generator does not call a model. Every sentence in it is either a finding that already passed the evidence filter or a fact about the run (which checks ran, token counts, how many findings were dropped). A summarising model could add claims nobody verified.
 
-**Static analysis as pre-filter, not the answer**
-radon and pytest-cov are run before the LLM and their signals are passed into the prompt as context, not returned as findings directly. A high cyclomatic complexity score goes into the smell prompt as: *"radon flagged this function at complexity 12 - does the diff justify it?"* The LLM decides. The tool just provides numbers.
+**Static analysis as a hint, not the answer**
+radon runs before the smell check and its complexity numbers go into the prompt as context, not out as findings. A high score reaches the model as: *"radon flagged this function at complexity 12 - does the diff justify it?"* The LLM decides. The tool just provides numbers.
+
+**A real quote can still be a poor finding**
+Real-PR evaluation showed models quoting genuine lines that point at nothing: a bare identifier, a comment, or a hedge such as "could be expensive if the data is large". After the evidence filter, a small deterministic gate drops those shapes and caps missing-tests findings at two per file. It is a stopgap: some hedges still pass (see `evaluation/RESULTS.md`).
+
+**Evaluated on snapshots, not final diffs**
+A merged PR's diff usually already contains the fix a reviewer asked for, and an index of the current code already contains the function being added. The evaluation therefore rebuilds each PR at the commit the reviewer saw and indexes the repository at the PR's base commit. Index builds carry a marker while unfinished so a half-built index is never mistaken for a complete one.
 
 ---
 
@@ -136,8 +159,8 @@ radon and pytest-cov are run before the LLM and their signals are passed into th
 | PR ingestion | GitHub REST API + requests | Fetch diffs and metadata |
 | Embeddings | sentence-transformers (all-MiniLM-L6-v2) | Encode code chunks for RAG |
 | Vector store | ChromaDB | Persist + retrieve similar code |
-| LLM | Groq API — Llama 3.1 8B (free) | All three checks + report synthesis |
-| Orchestration | LangChain | RAG chain + prompt management |
-| Pre-filters | radon (complexity), pytest-cov (coverage) | Signals fed into LLM prompts |
+| LLM | Groq API (`openai/gpt-oss-20b`, free) or local Ollama (Qwen) | All three checks (the report is deterministic, no LLM) |
+| Orchestration | Plain Python (`main.py`) | Runs the checks, no framework |
+| Pre-filter | radon (complexity) | Signal fed into the smell prompt |
 | UI | Streamlit | Dashboard |
 | Language | Python 3.11 | Everything |

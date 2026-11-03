@@ -1,0 +1,43 @@
+{
+  "pr": {
+    "repo": "apache/airflow",
+    "number": 25900,
+    "title": "Add conf parameter to CLI for airflow dags test",
+    "files": 2
+  },
+  "provider": "groq",
+  "llm_stats": {
+    "groq": {
+      "calls": 2,
+      "prompt_tokens": 1760,
+      "completion_tokens": 319,
+      "seconds": 14.415190799999891,
+      "model": "openai/gpt-oss-20b"
+    }
+  },
+  "dropped_by_final_filter": 0,
+  "checks": [
+    {
+      "name": "missing_tests",
+      "status": "ok",
+      "note": "",
+      "seconds": 14.4,
+      "metrics": {
+        "files_sent": 2,
+        "raw_findings": 2,
+        "dropped": 1
+      },
+      "findings": [
+        {
+          "check": "missing_tests",
+          "filename": "airflow/cli/commands/dag_command.py",
+          "evidence": "conf=run_conf",
+          "message": "The new conf parameter to dag.run is not covered by any test.",
+          "related": "",
+          "kind": "",
+          "severity": ""
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,56 @@
+{
+  "pr": {
+    "repo": "apache/airflow",
+    "number": 18161,
+    "title": "Duplicate Connection: Added logic to query if a connection id exists before creating one",
+    "files": 1
+  },
+  "provider": "groq",
+  "llm_stats": {
+    "groq": {
+      "calls": 1,
+      "prompt_tokens": 2238,
+      "completion_tokens": 283,
+      "seconds": 1.1022362999997313,
+      "model": "openai/gpt-oss-20b"
+    }
+  },
+  "dropped_by_final_filter": 0,
+  "checks": [
+    {
+      "name": "smell",
+      "status": "ok",
+      "note": "",
+      "seconds": 2.1,
+      "metrics": {
+        "files_considered": 1,
+        "llm_calls": 1,
+        "raw_findings": 2,
+        "dropped": 0,
+        "kept_findings": 2,
+        "radon_signals": 1,
+        "files_fetched": 1
+      },
+      "findings": [
+        {
+          "check": "smell",
+          "filename": "airflow/www/views.py",
+          "evidence": "results = session.execute(sql_query_string)",
+          "message": "A database query is executed once per selected connection, leading to N+1 round\u2011trips.",
+          "related": "",
+          "kind": "n_plus_one",
+          "severity": "medium"
+        },
+        {
+          "check": "smell",
+          "filename": "airflow/www/views.py",
+          "evidence": "sql_query_string = 'select conn_id from connection where '",
+          "message": "The SQL query string is constructed anew for every connection, incurring repeated string concatenation work.",
+          "related": "",
+          "kind": "repeated_work",
+          "severity": "low"
+        }
+      ]
+    }
+  ]
+}

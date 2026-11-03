@@ -1,0 +1,43 @@
+{
+  "pr": {
+    "repo": "scikit-learn/scikit-learn",
+    "number": 20312,
+    "title": "FIX avoid overflow in adjusted_rand_score with large amount data",
+    "files": 1
+  },
+  "provider": "groq",
+  "llm_stats": {
+    "groq": {
+      "calls": 1,
+      "prompt_tokens": 858,
+      "completion_tokens": 141,
+      "seconds": 7.435372300000381,
+      "model": "openai/gpt-oss-20b"
+    }
+  },
+  "dropped_by_final_filter": 0,
+  "checks": [
+    {
+      "name": "missing_tests",
+      "status": "ok",
+      "note": "",
+      "seconds": 7.4,
+      "metrics": {
+        "files_sent": 1,
+        "raw_findings": 1,
+        "dropped": 0
+      },
+      "findings": [
+        {
+          "check": "missing_tests",
+          "filename": "sklearn/metrics/cluster/_supervised.py",
+          "evidence": "tn = int(tn)",
+          "message": "Explicit int casting of confusion matrix counts to avoid overflow is untested.",
+          "related": "",
+          "kind": "",
+          "severity": ""
+        }
+      ]
+    }
+  ]
+}

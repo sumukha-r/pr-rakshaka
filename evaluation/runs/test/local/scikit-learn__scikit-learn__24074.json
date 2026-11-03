@@ -1,0 +1,56 @@
+{
+  "pr": {
+    "repo": "scikit-learn/scikit-learn",
+    "number": 24074,
+    "title": "MNT Use is_sparse to validate sparse data from pandas",
+    "files": 1
+  },
+  "provider": "local",
+  "llm_stats": {
+    "local": {
+      "calls": 1,
+      "prompt_tokens": 1747,
+      "completion_tokens": 88,
+      "seconds": 4.456845099999555,
+      "model": "qwen2.5-7b:latest"
+    }
+  },
+  "dropped_by_final_filter": 0,
+  "checks": [
+    {
+      "name": "reuse",
+      "status": "ok",
+      "note": "",
+      "seconds": 1.1,
+      "metrics": {
+        "defs_found": 1,
+        "blocks_found": 1,
+        "files_fetched": 1,
+        "with_candidates": 0,
+        "exact": 0,
+        "within_pr": 0,
+        "llm_calls": 0,
+        "retries": 0,
+        "raw_findings": 0,
+        "dropped": 0
+      },
+      "findings": []
+    },
+    {
+      "name": "smell",
+      "status": "ok",
+      "note": "",
+      "seconds": 5.4,
+      "metrics": {
+        "files_considered": 1,
+        "llm_calls": 1,
+        "raw_findings": 0,
+        "dropped": 0,
+        "kept_findings": 0,
+        "radon_signals": 1,
+        "files_fetched": 1
+      },
+      "findings": []
+    }
+  ]
+}

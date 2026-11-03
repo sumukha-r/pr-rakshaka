@@ -1,0 +1,33 @@
+{
+  "pr": {
+    "repo": "apache/airflow",
+    "number": 23961,
+    "title": "Support impersonation service account parameter for Dataflow runner",
+    "files": 2
+  },
+  "provider": "local",
+  "llm_stats": {
+    "local": {
+      "calls": 2,
+      "prompt_tokens": 1792,
+      "completion_tokens": 238,
+      "seconds": 9.485448900000847,
+      "model": "qwen2.5-7b:latest"
+    }
+  },
+  "dropped_by_final_filter": 0,
+  "checks": [
+    {
+      "name": "missing_tests",
+      "status": "ok",
+      "note": "",
+      "seconds": 9.5,
+      "metrics": {
+        "files_sent": 2,
+        "raw_findings": 2,
+        "dropped": 2
+      },
+      "findings": []
+    }
+  ]
+}

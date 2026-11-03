@@ -1,0 +1,37 @@
+{
+  "pr": {
+    "repo": "apache/airflow",
+    "number": 26798,
+    "title": "Google Drive to local - system tests migrations (AIP-47)",
+    "files": 3
+  },
+  "provider": "groq",
+  "llm_stats": {},
+  "dropped_by_final_filter": 0,
+  "checks": [
+    {
+      "name": "missing_tests",
+      "status": "skipped",
+      "note": "this PR changes no Python source files",
+      "seconds": 0.0,
+      "metrics": {},
+      "findings": []
+    },
+    {
+      "name": "reuse",
+      "status": "skipped",
+      "note": "this PR changes no Python source files",
+      "seconds": 0.0,
+      "metrics": {},
+      "findings": []
+    },
+    {
+      "name": "smell",
+      "status": "skipped",
+      "note": "this PR changes no Python source files",
+      "seconds": 0.0,
+      "metrics": {},
+      "findings": []
+    }
+  ]
+}

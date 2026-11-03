@@ -1,0 +1,61 @@
+{
+  "pr": {
+    "repo": "apache/airflow",
+    "number": 25183,
+    "title": "Add auth_type to LivyHook",
+    "files": 3
+  },
+  "provider": "groq",
+  "llm_stats": {
+    "groq": {
+      "calls": 3,
+      "prompt_tokens": 3153,
+      "completion_tokens": 544,
+      "seconds": 4.248347699999613,
+      "model": "openai/gpt-oss-20b"
+    }
+  },
+  "dropped_by_final_filter": 0,
+  "checks": [
+    {
+      "name": "missing_tests",
+      "status": "ok",
+      "note": "",
+      "seconds": 4.2,
+      "metrics": {
+        "files_sent": 3,
+        "raw_findings": 3,
+        "dropped": 0
+      },
+      "findings": [
+        {
+          "check": "missing_tests",
+          "filename": "airflow/providers/apache/livy/sensors/livy.py",
+          "evidence": "livy_conn_auth_type=self._livy_conn_auth_type",
+          "message": "New constructor argument livy_conn_auth_type is added but not tested.",
+          "related": "",
+          "kind": "",
+          "severity": ""
+        },
+        {
+          "check": "missing_tests",
+          "filename": "airflow/providers/apache/livy/operators/livy.py",
+          "evidence": "livy_conn_auth_type=self._livy_conn_auth_type",
+          "message": "LivyHook receives a new auth type parameter that is not covered by any test.",
+          "related": "",
+          "kind": "",
+          "severity": ""
+        },
+        {
+          "check": "missing_tests",
+          "filename": "airflow/providers/apache/livy/hooks/livy.py",
+          "evidence": "self.auth_type = auth_type or self.auth_type",
+          "message": "LivyHook now accepts an auth_type parameter that is stored but not tested.",
+          "related": "",
+          "kind": "",
+          "severity": ""
+        }
+      ]
+    }
+  ]
+}

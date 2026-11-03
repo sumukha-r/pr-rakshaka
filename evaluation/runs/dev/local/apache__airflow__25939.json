@@ -1,0 +1,32 @@
+{
+  "pr": {
+    "repo": "apache/airflow",
+    "number": 25939,
+    "title": "Fix placeholders in `TrinoHook`, `PrestoHook`, `SqliteHook`",
+    "files": 2
+  },
+  "provider": "local",
+  "llm_stats": {},
+  "dropped_by_final_filter": 0,
+  "checks": [
+    {
+      "name": "reuse",
+      "status": "ok",
+      "note": "",
+      "seconds": 2.9,
+      "metrics": {
+        "defs_found": 1,
+        "blocks_found": 0,
+        "files_fetched": 1,
+        "with_candidates": 0,
+        "exact": 0,
+        "within_pr": 0,
+        "llm_calls": 0,
+        "retries": 0,
+        "raw_findings": 0,
+        "dropped": 0
+      },
+      "findings": []
+    }
+  ]
+}
