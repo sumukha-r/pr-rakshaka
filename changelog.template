@@ -1,190 +1,190 @@
-# v1.1.1
+# v2.1.1
 
 Added Agent M0/M1: reachability check, agent loop and tools
 10-11-2026 18:50 by sumukha0000@gmail.com
 
-# v0.9.5
+# v1.9.5
 
 Added Real-PR evaluation results, dev-eval fixes, README and architecture updates
 03-11-2026 17:30 by sumukha0000@gmail.com
 
-# v0.9.4
+# v1.9.4
 
 Dev-eval fixes: quality gate, prompt tightening and indexer retries
 03-11-2026 15:30 by sumukha0000@gmail.com
 
-# v0.9.3
+# v1.9.3
 
 Added labeller and better candidate search for evaluation
 02-11-2026 20:30 by sumukha0000@gmail.com
 
-# v0.9.2
+# v1.9.2
 
 Review PRs as of the reviewer's comment; add quick labelling tool
 01-11-2026 18:00 by sumukha0000@gmail.com
 
-# v0.9.1
+# v1.9.1
 
 Added real-PR evaluation tools and index-at-commit support
 01-11-2026 17:40 by sumukha0000@gmail.com
 
-# v0.8.3
+# v1.8.3
 
 Updated streamlit demo mode review limits
 27-10-2026 20:00 by sumukha0000@gmail.com
 
-# v0.8.2
+# v1.8.2
 
 Updated README
 27-10-2026 17:00 by sumukha0000@gmail.com
 
-# v0.8.1
+# v1.8.1
 
 Integrated backend with streamlit dashboard reporting
 26-10-2026 17:00 by sumukha0000@gmail.com
 
-# v0.7.3
+# v1.7.3
 
 Updated performance check detector logic
 26-10-2026 11:00 by sumukha0000@gmail.com
 
-# v0.7.2
+# v1.7.2
 
 Updated reuse check detector logic
 26-10-2026 10:20 by sumukha0000@gmail.com
 
-# v0.7.1
+# v1.7.1
 
 Implemented integration of all checks and report generator
 26-10-2026 10:10 by sumukha0000@gmail.com
 
-# v0.6.3
+# v1.6.3
 
 Updated llm prompt and added tests for hot path smells (check 3)
 25-10-2026 13:20 by sumukha0000@gmail.com
 
-# v0.6.2
+# v1.6.2
 
 Updated readme and requirements
 25-10-2026 12:20 by sumukha0000@gmail.com
 
-# v0.6.1
+# v1.6.1
 
 Implemented hot path smells detection (check 3)
 25-10-2026 12:00 by sumukha0000@gmail.com
 
-# v0.5.1
+# v1.5.1
 
 Added resue detector and tests for reuse check (check 2)
 25-10-2026 11:00 by sumukha0000@gmail.com
 
-# v0.4.7
+# v1.4.7
 
 Updated evidence filder for check 1
 25-10-2026 10:50 by sumukha0000@gmail.com
 
-# v0.4.6
+# v1.4.6
 
 Updated logic and prompt for missing tests check (check 1)
 24-10-2026 13:00 by sumukha0000@gmail.com
 
-# v0.4.5
+# v1.4.5
 
 Added llm and rag tests for check 1 (fake cases)
 24-10-2026 12:40 by sumukha0000@gmail.com
 
-# v0.4.4
+# v1.4.4
 
 Added integration tests for check 1 (fake cases)
 23-10-2026 13:50 by sumukha0000@gmail.com
 
-# v0.4.3
+# v1.4.3
 
 Added tests for local and groq llm client
 23-10-2026 12:50 by sumukha0000@gmail.com
 
-# v0.4.2
+# v1.4.2
 
 Added tests for missing tests check (check 1)
 23-10-2026 11:20 by sumukha0000@gmail.com
 
-# v0.4.1
+# v1.4.1
 
 Added prompts evidence filter for missing tests check (check 1)
 23-10-2026 11:10 by sumukha0000@gmail.com
 
-# v0.3.5
+# v1.3.5
 
 Added tests for rag retriever
 22-10-2026 12:00 by sumukha0000@gmail.com
 
-# v0.3.4
+# v1.3.4
 
 Added comparision tests for llm models
 21-10-2026 11:00 by sumukha0000@gmail.com
 
-# v0.3.3
+# v1.3.3
 
 Added local model support for llm
 21-10-2026 11:00 by sumukha0000@gmail.com
 
-# v0.3.2
+# v1.3.2
 
 Updated groq llm client model for better parsing
 20-10-2026 11:00 by sumukha0000@gmail.com
 
-# v0.3.1
+# v1.3.1
 
 Added groq llm as client for checks
 19-10-2026 15:00 by sumukha0000@gmail.com
 
-# v0.2.4
+# v1.2.4
 
 Enhanced RAG indexing capablities
 18-10-2026 15:00 by sumukha0000@gmail.com
 
-# v0.2.3
+# v1.2.3
 
 Updated RAG indexer and retriever properties
 17-10-2026 18:00 by sumukha0000@gmail.com
 
-# v0.2.2
+# v1.2.2
 
 Updated RAG indexer helper functions and gitignore
 16-10-2026 18:00 by sumukha0000@gmail.com
 
-# v0.2.1
+# v1.2.1
 
 Added RAG retriever to obtain similar functions/classes from diff chunks
 15-10-2026 14:00 by sumukha0000@gmail.com
 
-# v0.2.1
+# v1.2.1
 
 Added RAG indexer to index PRs and store into ChromaDB
 14-10-2026 14:00 by sumukha0000@gmail.com
 
-# v0.1.1
+# v1.1.1
 
 Added PR paser logic
 13-10-2026 14:00 by sumukha0000@gmail.com
 
-# v0.0.3
+# v1.0.3
 
 Updated architecture
 12-10-2026 19:00 by sumukha0000@gmail.com
 
-# v0.0.3
+# v1.0.3
 
 Updated README contents
 12-10-2026 18:00 by sumukha0000@gmail.com
 
-# v0.0.2
+# v1.0.2
 
 Added initial architecture for pr-rakshaka
 11-10-2026 19:20 by sumukha0000@gmail.com
 
 
-# v0.0.1
+# v1.0.1
 
 Committed intial repository skeleton for pr-rakshaka
 11-10-2026 19:20 by sumukha0000@gmail.com
