@@ -21,7 +21,7 @@ from typing import Callable, Optional
 
 from evaluation import labels as label_store
 from evaluation.labels import CHECKS, blank_check, label_id
-from evaluation.snapshot import added_lines_of
+from evaluation.snapshot import added_lines_of, reachable
 from src.llm.prompts import is_test_file
 
 HINT_TO_CHECK = {"tests": "missing_tests", "smell": "smell", "reuse": "reuse"}
@@ -146,6 +146,7 @@ def main(argv=None) -> int:
     from evaluation.github_api import GitHub
     from evaluation.snapshot import build_pr
     gh = GitHub()
+    unreachable_file = Path(__file__).parent / "unreachable.txt"
     rows = [r for r in load_candidates(args.candidates) if not args.hint or r["hint"] == args.hint]
     if args.only:
         wanted = read_only_list(args.only)
@@ -163,6 +164,14 @@ def main(argv=None) -> int:
         for row in todo:
             if written >= args.limit:
                 break
+            ok, why = reachable(gh, base_label(row))
+            if not ok:
+                with open(unreachable_file, "a", encoding="utf-8") as fh:
+                    fh.write(f"{label_id(row['repo'], int(row['number']))}  {why}\n")
+                with open(skipped_file, "a", encoding="utf-8") as fh:
+                    fh.write(label_id(row["repo"], int(row["number"])) + "\n")
+                print(f"skipped {row['repo']}#{row['number']}: {why}")
+                continue
             label = decide(row, lambda r: build_pr(gh, base_label(r)), input, print)
             if label is None:
                 with open(skipped_file, "a", encoding="utf-8") as fh:

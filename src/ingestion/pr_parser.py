@@ -33,6 +33,7 @@ class PullRequest:
     changed_files: int
     files: list[PRFile] = field(default_factory=list)
     head_sha: str = ""    # commit of the PR branch; lets checks read whole files
+    base_sha: str = ""    # commit the PR branched from; the agent reads "before" files here
 
 
 def parse_pr_url(url: str) -> tuple[str, int]:
@@ -105,6 +106,7 @@ def fetch_pr(repo: str, number: int, token: Optional[str] = None) -> PullRequest
         changed_files=meta["changed_files"],
         files=files,
         head_sha=(meta.get("head") or {}).get("sha", ""),
+        base_sha=(meta.get("base") or {}).get("sha", ""),
     )
 
 
@@ -154,3 +156,4 @@ if __name__ == "__main__":
     print(f"Files changed ({pr.changed_files}):")
     for f in pr.files:
         print(f"  [{f.status:8s}] {f.filename}")
+        

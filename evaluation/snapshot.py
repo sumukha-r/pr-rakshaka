@@ -13,6 +13,8 @@ from __future__ import annotations
 
 from typing import Optional
 
+import requests
+
 from evaluation.github_api import GitHub
 from src.ingestion.pr_parser import PRFile, PullRequest
 
@@ -33,6 +35,26 @@ def snapshot_sha_for(match: dict, commits: list[dict]) -> str:
     return best
 
 
+def reachable(gh: GitHub, label: dict) -> tuple[bool, str]:
+    """Can the PR still be rebuilt at its snapshot commit? Returns (ok, reason).
+
+    Reviewed PRs are often rebased or force-pushed afterwards, and GitHub then no
+    longer has the commit the reviewer saw (404). Finding that out before labelling
+    saves the work, and stops positives from silently dropping out at scoring time.
+    Anything other than 404/422 (a network error, a rate limit) is raised, not
+    mistaken for a missing commit."""
+    if not label.get("snapshot_sha") or not label.get("base_sha"):
+        return False, "no snapshot or base commit recorded"
+    try:
+        gh.compare(label["repo"], label["base_sha"], label["snapshot_sha"])
+    except requests.HTTPError as exc:
+        code = getattr(getattr(exc, "response", None), "status_code", None)
+        if code in (404, 422):
+            return False, f"GitHub returned {code} for the compare (commit no longer available)"
+        raise
+    return True, ""
+
+
 def build_pr(gh: GitHub, label: dict) -> PullRequest:
     """PullRequest for a label: the PR's diff from its base up to `snapshot_sha`."""
     head = label.get("snapshot_sha") or ""
@@ -44,7 +66,8 @@ def build_pr(gh: GitHub, label: dict) -> PullRequest:
                        author="", state="closed", merged=True, body="",
                        additions=sum(f.additions for f in files),
                        deletions=sum(f.deletions for f in files),
-                       changed_files=len(files), files=files, head_sha=head)
+                       changed_files=len(files), files=files, head_sha=head,
+                       base_sha=label.get("base_sha", ""))
 
 
 def added_lines_of(pr: PullRequest, filename: str) -> list[str]:

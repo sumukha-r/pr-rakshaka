@@ -1,3 +1,8 @@
+# v1.1.1
+
+Added Agent M0/M1: reachability check, agent loop and tools
+10-11-2026 18:50 by sumukha0000@gmail.com
+
 # v0.9.5
 
 Added Real-PR evaluation results, dev-eval fixes, README and architecture updates
