@@ -4,7 +4,11 @@ run_eval.py — run the pipeline over a split and save every review.
     python -m evaluation.run_eval --split dev  --provider groq
     python -m evaluation.run_eval --split dev  --provider local
     python -m evaluation.run_eval --split test --provider groq --final     # once
+    python -m evaluation.run_eval --split dev  --provider groq --mode agent   # v2 agent checks
 
+The test split is protected: it needs --final, it checks the test labels were
+not edited since the split was made, and it will not run a second time for the
+same provider.
 """
 
 from __future__ import annotations
@@ -32,7 +36,8 @@ def _snapshot_pr(label: dict):
 
 
 def run_one(label: dict, provider: str, *, review_fn: Optional[Callable] = None,
-            ref_ctx=None, pr_builder: Optional[Callable] = None) -> dict:
+            ref_ctx=None, pr_builder: Optional[Callable] = None,
+            runners: Optional[dict] = None) -> dict:
     """Review one labelled PR as of its snapshot commit. Returns the Review as a dict,
     or {"error": ...}."""
     if review_fn is None:
@@ -43,8 +48,9 @@ def run_one(label: dict, provider: str, *, review_fn: Optional[Callable] = None,
     try:
         pr = (pr_builder or _snapshot_pr)(label)
         with ref_ctx(label["base_sha"] if "reuse" in checks else None):
+            extra = {"runners": runners} if runners else {}
             review = review_fn(pr, checks=checks, provider=provider,
-                               index_if_missing=True)
+                               index_if_missing=True, **extra)
         return review.to_dict()
     except Exception as exc:  # noqa: BLE001 - record it, keep going with the other PRs
         return {"error": f"{type(exc).__name__}: {exc}", "checks": []}
@@ -54,6 +60,8 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="Run the pipeline over the dev or test split.")
     ap.add_argument("--split", choices=["dev", "test"], required=True)
     ap.add_argument("--provider", choices=["groq", "local"], required=True)
+    ap.add_argument("--mode", choices=["pipeline", "agent"], default="pipeline",
+                    help="pipeline = v1 checks; agent = v2 agent checks (saved under <provider>-agent)")
     ap.add_argument("--final", action="store_true", help="required for the test split")
     ap.add_argument("--force", action="store_true", help="re-run PRs that already have output")
     args = ap.parse_args(argv)
@@ -63,7 +71,7 @@ def main(argv=None) -> int:
         return 1
     split = json.loads(SPLIT_FILE.read_text())
     ids = split[args.split]
-    out = run_dir(args.split, args.provider)
+    out = run_dir(args.split, args.provider + ("-agent" if args.mode == "agent" else ""))
 
     if args.split == "test":
         if not args.final:
@@ -81,12 +89,17 @@ def main(argv=None) -> int:
 
     labels = load_all()
     out.mkdir(parents=True, exist_ok=True)
+    runners = None
+    if args.mode == "agent":
+        from src.agent.checks import agent_runners
+        # No fallback to v1 here: a failed agent must show up as "not run", not be scored as v1.
+        runners = agent_runners(trace_dir=out / "traces", fallback=False)
     for n, lid in enumerate(ids, 1):
         path = out / f"{lid}.json"
         if path.exists() and not args.force:
             continue
         print(f"[{n}/{len(ids)}] {lid}", flush=True)
-        path.write_text(json.dumps(run_one(labels[lid], args.provider), indent=2), encoding="utf-8")
+        path.write_text(json.dumps(run_one(labels[lid], args.provider, runners=runners), indent=2), encoding="utf-8")
     print(f"done: {out}")
     return 0
 

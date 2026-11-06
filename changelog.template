@@ -1,7 +1,12 @@
+# v2.2.1
+
+Added Agent M2: missing-tests and reuse agents, run_eval agent mode, cost columns
+06-11-2026 20:00 by sumukha0000@gmail.com
+
 # v2.1.1
 
 Added Agent M0/M1: reachability check, agent loop and tools
-10-11-2026 18:50 by sumukha0000@gmail.com
+05-11-2026 18:50 by sumukha0000@gmail.com
 
 # v1.9.5
 

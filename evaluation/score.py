@@ -71,7 +71,8 @@ def score_run(labels: dict[str, dict], ids: list[str], runs: dict[str, dict],
     out = {}
     for check in CHECKS:
         m = dict(prs=0, not_run=0, targets=0, hit=0, findings=0, valid=0, wrong=0, pending=0,
-                 none_prs=0, silent=0, noisy_valid=0)
+                 none_prs=0, silent=0, noisy_valid=0, seconds=0.0, tokens=0, token_prs=0,
+                 tool_calls=0)
         for pid in ids:
             exp = labels[pid]["checks"][check]["expect"]
             if exp not in ("finding", "none"):
@@ -81,6 +82,12 @@ def score_run(labels: dict[str, dict], ids: list[str], runs: dict[str, dict],
                 m["not_run"] += 1
                 continue
             m["prs"] += 1
+            m["seconds"] += float(res.get("seconds") or 0)
+            met = res.get("metrics") or {}
+            if "agent_tokens" in met:                  # only the agent reports these
+                m["token_prs"] += 1
+                m["tokens"] += int(met.get("agent_tokens") or 0)
+                m["tool_calls"] += int(met.get("agent_tool_calls") or 0)
             found = res.get("findings", [])
             m["findings"] += len(found)
             targets = labels[pid]["checks"][check]["targets"] if exp == "finding" else []
@@ -109,6 +116,9 @@ def score_run(labels: dict[str, dict], ids: list[str], runs: dict[str, dict],
         m["precision"] = round(m["valid"] / judged, 3) if judged else None
         m["provisional"] = m["pending"] > 0
         m["findings_per_pr"] = round(m["findings"] / m["prs"], 2) if m["prs"] else None
+        m["seconds_per_pr"] = round(m["seconds"] / m["prs"], 1) if m["prs"] else None
+        m["tokens_per_pr"] = round(m["tokens"] / m["token_prs"]) if m["token_prs"] else None
+        m["tool_calls_per_pr"] = round(m["tool_calls"] / m["token_prs"], 1) if m["token_prs"] else None
         out[check] = m
     return out
 
@@ -160,13 +170,16 @@ def format_table(provider: str, result: dict) -> str:
     def pct(x):
         return "n/a" if x is None else f"{x:.0%}"
     lines = [f"\n{provider}",
-             f"{'check':14s} {'PRs':>4s} {'recall':>14s} {'precision':>15s} {'silent on none':>15s} {'per PR':>7s} {'not run':>8s}"]
+             f"{'check':14s} {'PRs':>4s} {'recall':>14s} {'precision':>15s} {'silent on none':>15s} {'per PR':>7s} {'not run':>8s} {'sec/PR':>7s} {'tok/PR':>7s} {'calls':>6s}"]
     for check, m in result.items():
         rec = f"{pct(m['recall'])} ({m['hit']}/{m['targets']})"
         prec = f"{pct(m['precision'])} ({m['valid']}/{m['valid'] + m['wrong']})" + ("*" if m["provisional"] else "")
         sil = f"{m['silent']}/{m['none_prs']}"
         lines.append(f"{check:14s} {m['prs']:>4d} {rec:>14s} {prec:>15s} {sil:>15s} "
-                     f"{(m['findings_per_pr'] if m['findings_per_pr'] is not None else 'n/a')!s:>7} {m['not_run']:>8d}")
+                     f"{(m['findings_per_pr'] if m['findings_per_pr'] is not None else 'n/a')!s:>7} {m['not_run']:>8d} "
+                     f"{(m.get('seconds_per_pr') if m.get('seconds_per_pr') is not None else 'n/a')!s:>7} "
+                     f"{(m.get('tokens_per_pr') if m.get('tokens_per_pr') is not None else 'n/a')!s:>7} "
+                     f"{(m.get('tool_calls_per_pr') if m.get('tool_calls_per_pr') is not None else 'n/a')!s:>6}")
     if any(m["provisional"] for m in result.values()):
         pend = sum(m["pending"] for m in result.values())
         lines.append(f"* provisional: {pend} finding(s) still need a verdict in evaluation/judgements.csv")

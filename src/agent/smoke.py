@@ -44,7 +44,7 @@ def main(argv=None) -> int:
     pr = fetch_pr_from_url(args.pr_url, os.getenv("GITHUB_TOKEN"))
     reader = GitHubReader(cache=Cache("data/agent_cache"))
     ctx = AgentContext(pr, allow_comments=False,
-                       index_search=make_index_search(pr.repo, pr.base_sha) if pr.base_sha else None)
+                       index_search=make_index_search(pr.repo, None))
     sources = [f.filename for f in pr.files if f.filename.endswith(".py") and not is_test_file(f.filename)]
     user = f"Pull request: {pr.title}\nChanged source files:\n" + "\n".join(f"- {s}" for s in sources[:5])
     try:
