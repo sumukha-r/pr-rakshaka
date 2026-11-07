@@ -12,6 +12,8 @@ Guard rails, each of them tested:
     best final answer without tools;
   * tool output is wrapped as untrusted data, and the system prompt says so;
   * an identical tool call is answered from memory instead of being repeated;
+  * a final reply that is not valid JSON is repaired once (one extra turn, like v1);
+  * `min_tool_calls` nudges a model that answers without looking at anything, once;
   * `with_fallback` runs the v1 pipeline when the agent fails, so a review is
     still produced.
 """
@@ -83,8 +85,10 @@ class AgentResult:
         return self.data is not None
 
 
-class AgentFailed(RuntimeError):
-    """The agent ended without a usable answer."""
+class AgentFailed(LLMError):
+    """The agent ended without a usable answer.
+
+    An LLMError on purpose: main.py reports those as a one-line "failed" note, no traceback."""
 
 
 def wrap_untrusted(tool: str, text: str) -> str:
@@ -92,8 +96,15 @@ def wrap_untrusted(tool: str, text: str) -> str:
     return f'<untrusted tool="{tool}">\n{safe}\n</untrusted>'
 
 
+def _parse(text: str) -> Optional[dict]:
+    try:
+        return parse_json_object(text)
+    except ValueError:
+        return None
+
+
 def run_agent(system: str, user: str, tools: RepoTools, *, provider: Optional[str] = None,
-              model: Optional[str] = None, budget: Optional[Budget] = None,
+              model: Optional[str] = None, budget: Optional[Budget] = None, min_tool_calls: int = 0,
               llm: Callable[..., Turn] = chat_with_tools) -> AgentResult:
     budget = budget or Budget()
     trace, t0 = Trace(), time.monotonic()
@@ -102,6 +113,7 @@ def run_agent(system: str, user: str, tools: RepoTools, *, provider: Optional[st
     specs = tools.specs()
     seen: dict[str, str] = {}
     steps = calls = ptok = ctok = malformed = 0
+    nudged = False
     stop, text, who = "max_steps", "", ("", "")
 
     def spent() -> str:
@@ -131,6 +143,13 @@ def run_agent(system: str, user: str, tools: RepoTools, *, provider: Optional[st
                   prompt_tokens=turn.prompt_tokens, completion_tokens=turn.completion_tokens,
                   seconds=round(turn.seconds, 2), text=turn.content[:300])
         if not turn.tool_calls:
+            if calls < min_tool_calls and not nudged and steps < budget.max_steps:
+                nudged = True                       # answered without looking: ask once for evidence
+                trace.add("nudge", step=steps)
+                messages.append(turn.message)
+                messages.append({"role": "user", "content": "You have not used any tool yet. Use the "
+                                 "tools to look at the repository first, then give your final answer."})
+                continue
             text, stop = turn.content, "answered"
             break
         messages.append(turn.message)
@@ -161,10 +180,20 @@ def run_agent(system: str, user: str, tools: RepoTools, *, provider: Optional[st
         trace.add("model", step=steps + 1, tools=[], prompt_tokens=turn.prompt_tokens,
                   completion_tokens=turn.completion_tokens, seconds=round(turn.seconds, 2), text=text[:300])
 
-    try:
-        data: Optional[dict] = parse_json_object(text)
-    except ValueError:
-        data = None
+    data = _parse(text)
+    if data is None and text.strip():                # one repair turn, like v1's retry
+        messages.append({"role": "assistant", "content": text})
+        messages.append({"role": "user", "content": "That was not a valid JSON object. Reply again "
+                         "with only the JSON object described in the task, nothing else."})
+        try:
+            turn = llm(messages, [], provider=provider, model=model)
+        except (LLMError, MalformedToolCall):
+            turn = None
+        if turn is not None:
+            ptok, ctok, who = ptok + turn.prompt_tokens, ctok + turn.completion_tokens, (turn.provider, turn.model)
+            trace.add("repair", text=turn.content[:300])
+            text = turn.content
+            data = _parse(text)
     return AgentResult(text, data, stop, steps, calls, ptok, ctok, round(time.monotonic() - t0, 2),
                        who[0], who[1], trace)
 

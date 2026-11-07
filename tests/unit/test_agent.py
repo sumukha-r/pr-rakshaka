@@ -267,8 +267,28 @@ def test_one_malformed_call_is_retried_three_in_a_row_fail():
 
 
 def test_a_reply_that_is_not_json_gives_no_data():
-    r = run_agent("s", "t", make_tools(), llm=Script(say("I think it is fine.")))
+    r = run_agent("s", "t", make_tools(), llm=Script(say("I think it is fine."), say("Still prose.")))
     assert r.stop == "answered" and not r.ok and r.data is None
+
+
+def test_a_non_json_final_answer_is_repaired_once():
+    llm = Script(say("Looks fine to me."), say(ANSWER))
+    r = run_agent("s", "t", make_tools(), llm=llm)
+    assert r.ok and [e["kind"] for e in r.trace.events] == ["model", "repair"]
+    assert llm.seen[1][1] == [] and "not a valid JSON" in llm.seen[1][0][-1]["content"]
+
+
+def test_a_model_that_answers_without_tools_is_nudged_once():
+    llm = Script(say(ANSWER), call("pr_context"), say(ANSWER))
+    r = run_agent("s", "t", make_tools(), min_tool_calls=1, llm=llm)
+    assert r.ok and r.tool_calls == 1 and any(e["kind"] == "nudge" for e in r.trace.events)
+    llm = Script(say(ANSWER), say(ANSWER))                   # still no tool: accepted after one nudge
+    r = run_agent("s", "t", make_tools(), min_tool_calls=1, llm=llm)
+    assert r.ok and r.tool_calls == 0 and r.steps == 2
+
+
+def test_agent_failed_is_an_llm_error_so_main_reports_it_quietly():
+    assert issubclass(AgentFailed, LLMError)
 
 
 def test_with_fallback_runs_v1_when_the_agent_fails():
@@ -381,3 +401,4 @@ def test_groq_server_errors_are_retried(monkeypatch):
     monkeypatch.setattr(v1, "_get_groq", lambda: fake)
     assert agent_llm.chat_with_tools([], [], provider="groq").content == "done"
     assert "tool_choice" not in fake.kwargs                  # no tools: a plain answer
+    

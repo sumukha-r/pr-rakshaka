@@ -73,14 +73,14 @@ def _save_trace(trace_dir: Optional[Path], pr: PullRequest, name: str, r: AgentR
 
 
 def _agent_call(system: str, user: str, tools: RepoTools, budget: Budget, usage: _Usage,
-                pr: PullRequest, name: str, trace_dir: Optional[Path]) -> Optional[dict]:
+                pr: PullRequest, name: str, trace_dir: Optional[Path], min_tool_calls: int = 0) -> Optional[dict]:
     """One agent run. Returns the parsed answer, or None (counted as a failure) if it had none."""
-    r = run_agent(system, user, tools, budget=budget)
+    r = run_agent(system, user, tools, budget=budget, min_tool_calls=min_tool_calls)
     usage.add(r)
     _save_trace(trace_dir, pr, name, r)
     if not r.ok:
         usage.failures += 1
-        log.warning("%s: no valid JSON answer (%s)", name, r.stop)
+        log.info("%s: no valid JSON answer (%s)", name, r.stop)
         return None
     return r.data
 
@@ -105,7 +105,7 @@ def agent_missing_tests(pr: PullRequest, reader: GitHubReader, *, budget: Option
     for f in candidates:
         prompt = build_missing_tests_prompt(pr.title, f.filename, f.patch, test_files)
         data = _agent_call(MISSING_TESTS_AGENT_SYSTEM, prompt, tools, budget, usage, pr,
-                           f"missing_tests__{Path(f.filename).stem}", trace_dir)
+                           f"missing_tests__{Path(f.filename).stem}", trace_dir, min_tool_calls=1)
         if data is None:
             continue
         analyses.append((f.filename, _analysis(data)))

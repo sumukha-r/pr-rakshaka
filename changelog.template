@@ -1,3 +1,8 @@
+# v2.2.2
+
+Updated llm to handle silent failures
+07-11-2026 22:00 by sumukha0000@gmail.com
+
 # v2.2.1
 
 Added Agent M2: missing-tests and reuse agents, run_eval agent mode, cost columns
