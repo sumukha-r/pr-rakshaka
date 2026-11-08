@@ -19,7 +19,7 @@ from src.checks.smell_catalog import (
 from src.ingestion.diff_defs import added_definitions, added_line_numbers
 from src.ingestion.pr_parser import PRFile, PullRequest, fetch_pr_from_url, fetch_source_at
 from src.llm.aggregator import Finding, is_substantive, keep_evidenced
-from src.llm.client import PROVIDERS, chat_json, use_provider
+from src.llm.client import PROVIDERS, LLMError, chat_json, use_provider
 from src.llm.prompts import HOT_PATH_SYSTEM, build_hot_path_prompt, is_test_file
 
 log = logging.getLogger(__name__)
@@ -117,6 +117,9 @@ def check_hot_path_smells(
         try:
             reply = chat_json(HOT_PATH_SYSTEM, prompt)
             calls += 1
+        except LLMError as exc:                      # expected (rate limit, model missing): one line, no traceback
+            log.warning("hot-path review failed for %s: %s", f.filename, exc)
+            raise
         except Exception:
             log.exception("hot-path review failed for %s", f.filename)
             raise

@@ -7,4 +7,5 @@ data/raw/
 *.egg-info/
 .venv/
 data/
+evaluation/runs
 *.ipynb_checkpoints
