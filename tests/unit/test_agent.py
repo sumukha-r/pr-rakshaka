@@ -401,4 +401,14 @@ def test_groq_server_errors_are_retried(monkeypatch):
     monkeypatch.setattr(v1, "_get_groq", lambda: fake)
     assert agent_llm.chat_with_tools([], [], provider="groq").content == "done"
     assert "tool_choice" not in fake.kwargs                  # no tools: a plain answer
-    
+
+
+def test_local_invalid_tool_call_500_becomes_a_retryable_malformed_call(monkeypatch):
+    monkeypatch.setattr(agent_llm.requests, "post", lambda *a, **k: types.SimpleNamespace(
+        status_code=500, text='{"error":{"message":"llama-server returned invalid tool call arguments"}}'))
+    with pytest.raises(MalformedToolCall):
+        agent_llm.chat_with_tools([{"role": "user", "content": "hi"}], [{"type": "function"}], provider="local")
+    monkeypatch.setattr(agent_llm.requests, "post", lambda *a, **k: types.SimpleNamespace(
+        status_code=500, text="out of memory"))
+    with pytest.raises(LLMError):                              # other 500s stay real errors
+        agent_llm.chat_with_tools([{"role": "user", "content": "hi"}], [], provider="local")

@@ -1,3 +1,8 @@
+# v2.2.4
+
+Updated llm to resolve malinformed calls
+09-11-2026 14:00 by sumukha0000@gmail.com
+
 # v2.2.3
 
 Updated agent to resolve AgentFailed errors

@@ -56,6 +56,15 @@ def run_one(label: dict, provider: str, *, review_fn: Optional[Callable] = None,
         return {"error": f"{type(exc).__name__}: {exc}", "checks": []}
 
 
+def needs_retry(path: Path) -> bool:
+    """True if a saved review is an error, unreadable, or has a check that failed."""
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return True
+    return "error" in data or any(c.get("status") == "failed" for c in data.get("checks", []))
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="Run the pipeline over the dev or test split.")
     ap.add_argument("--split", choices=["dev", "test"], required=True)
@@ -64,6 +73,9 @@ def main(argv=None) -> int:
                     help="pipeline = v1 checks; agent = v2 agent checks (saved under <provider>-agent)")
     ap.add_argument("--final", action="store_true", help="required for the test split")
     ap.add_argument("--force", action="store_true", help="re-run PRs that already have output")
+    ap.add_argument("--retry-failed", action="store_true",
+                    help="re-run only PRs whose saved output has an error or a failed check "
+                         "(finish a run after a rate limit without re-spending tokens on the rest)")
     args = ap.parse_args(argv)
 
     if not SPLIT_FILE.exists():
@@ -96,7 +108,7 @@ def main(argv=None) -> int:
         runners = agent_runners(trace_dir=out / "traces", fallback=False)
     for n, lid in enumerate(ids, 1):
         path = out / f"{lid}.json"
-        if path.exists() and not args.force:
+        if path.exists() and not args.force and not (args.retry_failed and needs_retry(path)):
             continue
         print(f"[{n}/{len(ids)}] {lid}", flush=True)
         path.write_text(json.dumps(run_one(labels[lid], args.provider, runners=runners), indent=2), encoding="utf-8")

@@ -563,3 +563,25 @@ def test_test_labels_in_the_csv_are_frozen_too(workspace, monkeypatch, capsys):
     assert run_eval.main(["--split", "test", "--provider", "groq", "--final"]) == 1
     assert "no longer an unseen set" in capsys.readouterr().err
     
+
+def test_common_scores_only_the_prs_every_run_completed():
+    labels = labelled()
+    ids = ["o__r__1", "o__r__2", "o__r__3"]
+    base = {i: run_of("missing_tests", []) for i in ids}
+    other = {"o__r__1": run_of("missing_tests", [finding()]),
+             "o__r__2": run_of("missing_tests", [], status="failed"),
+             "o__r__3": run_of("missing_tests", [])}
+    only = score.common_ids(labels, ids, {"base": base, "other": other})
+    assert only["missing_tests"] == {"o__r__1", "o__r__3"}
+    m = score.score_run(labels, ids, base, {}, only)["missing_tests"]
+    assert m["prs"] == 2 and m["not_run"] == 0 and m["targets"] == 1
+
+
+def test_retry_failed_picks_up_errors_and_failed_checks_only(tmp_path):
+    ok, bad, err, junk = (tmp_path / n for n in ("ok.json", "bad.json", "err.json", "junk.json"))
+    ok.write_text(json.dumps(run_of("missing_tests", [])))
+    bad.write_text(json.dumps(run_of("missing_tests", [], status="failed")))
+    err.write_text(json.dumps({"error": "boom", "checks": []}))
+    junk.write_text("{not json")
+    assert [run_eval.needs_retry(p) for p in (ok, bad, err, junk)] == [False, True, True, True]
+    

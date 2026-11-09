@@ -65,9 +65,25 @@ def _check_result(run: dict, name: str) -> Optional[dict]:
     return None
 
 
+def common_ids(labels: dict, ids: list[str], all_runs: dict[str, dict]) -> dict[str, set]:
+    """Per check, the PRs on which EVERY run set produced a result, so tables compare like with like."""
+    out = {}
+    for check in CHECKS:
+        ok = set()
+        for pid in ids:
+            if labels[pid]["checks"][check]["expect"] not in ("finding", "none"):
+                continue
+            if all((r := _check_result(runs.get(pid, {}), check)) and r.get("status") == "ok"
+                   for runs in all_runs.values()):
+                ok.add(pid)
+        out[check] = ok
+    return out
+
+
 def score_run(labels: dict[str, dict], ids: list[str], runs: dict[str, dict],
-              judgements: dict[str, str]) -> dict:
-    """Metrics per check for one provider. `runs` maps PR id -> saved review dict."""
+              judgements: dict[str, str], only: Optional[dict[str, set]] = None) -> dict:
+    """Metrics per check for one provider. `runs` maps PR id -> saved review dict.
+    `only` (from common_ids) restricts each check to those PRs."""
     out = {}
     for check in CHECKS:
         m = dict(prs=0, not_run=0, targets=0, hit=0, findings=0, valid=0, wrong=0, pending=0,
@@ -76,6 +92,8 @@ def score_run(labels: dict[str, dict], ids: list[str], runs: dict[str, dict],
         for pid in ids:
             exp = labels[pid]["checks"][check]["expect"]
             if exp not in ("finding", "none"):
+                continue
+            if only is not None and pid not in only[check]:
                 continue
             res = _check_result(runs.get(pid, {}), check)
             if res is None or res.get("status") != "ok":
@@ -191,6 +209,8 @@ def main(argv=None) -> int:
     ap.add_argument("--split", choices=["dev", "test"], required=True)
     ap.add_argument("--providers", nargs="+", default=["groq", "local"])
     ap.add_argument("--json", action="store_true")
+    ap.add_argument("--common", action="store_true",
+                    help="score only the PRs every listed provider ran, so the tables are comparable")
     args = ap.parse_args(argv)
 
     if not SPLIT_FILE.exists():
@@ -211,7 +231,10 @@ def main(argv=None) -> int:
               f"(valid / invalid / trivial) and run this again")
     verdicts = {k: r.get("verdict", "") for k, r in existing.items()}
 
-    results = {p: score_run(labels, ids, runs, verdicts) for p, runs in all_runs.items()}
+    only = common_ids(labels, ids, all_runs) if args.common else None
+    if only is not None:
+        print("common PRs per check: " + ", ".join(f"{c}={len(v)}" for c, v in only.items()))
+    results = {p: score_run(labels, ids, runs, verdicts, only) for p, runs in all_runs.items()}
     print(json.dumps(results, indent=2) if args.json else
           "\n".join(format_table(p, r) for p, r in results.items()))
     return 0

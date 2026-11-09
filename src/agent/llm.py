@@ -148,6 +148,9 @@ def _local_turn(model: str, messages, tools, temperature, max_tokens) -> Turn:
     if resp.status_code == 400 and tools and "tool" in resp.text.lower():
         raise v1.LLMError(f"Local model '{model}' does not support tool calling "
                           f"(server said: {resp.text[:200]}). Pick a model that does.")
+    if resp.status_code == 500 and "invalid tool call" in resp.text.lower():
+        # llama-server could not parse what the model wrote as a tool call: let the loop retry
+        raise MalformedToolCall(resp.text[:200])
     if resp.status_code >= 400:
         raise v1.LLMError(f"Local server error {resp.status_code}: {resp.text[:300]}")
     data = resp.json()
