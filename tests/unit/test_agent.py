@@ -412,3 +412,94 @@ def test_local_invalid_tool_call_500_becomes_a_retryable_malformed_call(monkeypa
         status_code=500, text="out of memory"))
     with pytest.raises(LLMError):                              # other 500s stay real errors
         agent_llm.chat_with_tools([{"role": "user", "content": "hi"}], [], provider="local")
+
+
+# --------------------------------------------------------------------------- remote provider
+
+@pytest.fixture
+def remote(monkeypatch):
+    monkeypatch.setattr(v1, "REMOTE_BASE_URL", "https://api.example.com/v1")
+    monkeypatch.setattr(v1, "REMOTE_API_KEY", "k-123")
+    monkeypatch.setattr(v1, "REMOTE_MODEL", "big-model")
+    monkeypatch.setattr(v1.time, "sleep", lambda s: None)
+
+
+def reply(status=200, body=None, text="", headers=None):
+    return types.SimpleNamespace(status_code=status, json=lambda: body, text=text, headers=headers or {})
+
+
+def test_remote_needs_all_three_settings(monkeypatch):
+    monkeypatch.setattr(v1, "REMOTE_API_KEY", "")
+    with pytest.raises(LLMError, match="REMOTE_API_KEY"):
+        v1.chat_detailed("s", "u", provider="remote")
+
+
+def test_remote_chat_sends_the_key_and_reads_the_reply(remote, monkeypatch):
+    seen = {}
+
+    def post(url, json=None, timeout=None, headers=None):
+        seen.update(url=url, headers=headers, model=json["model"])
+        return reply(body={"choices": [{"message": {"content": "hi"}}],
+                           "usage": {"prompt_tokens": 3, "completion_tokens": 1}})
+    monkeypatch.setattr(v1.requests, "post", post)
+    r = v1.chat_detailed("s", "u", provider="remote")
+    assert (r.text, r.provider, r.model, r.prompt_tokens) == ("hi", "remote", "big-model", 3)
+    assert seen["url"].endswith("/chat/completions") and seen["headers"] == {"Authorization": "Bearer k-123"}
+
+
+def test_remote_retries_429_and_then_succeeds_but_gives_up_on_a_daily_cap(remote, monkeypatch):
+    answers = [reply(429, text="slow down", headers={"retry-after": "2"}),
+               reply(body={"choices": [{"message": {"content": "ok"}}]})]
+    monkeypatch.setattr(v1.requests, "post", lambda *a, **k: answers.pop(0))
+    assert v1.chat_detailed("s", "u", provider="remote").text == "ok"
+    monkeypatch.setattr(v1.requests, "post", lambda *a, **k: reply(429, headers={"retry-after": "9999"}))
+    with pytest.raises(LLMError, match="rate limit"):
+        v1.chat_detailed("s", "u", provider="remote")
+
+
+def test_remote_bad_key_is_a_clear_error(remote, monkeypatch):
+    monkeypatch.setattr(v1.requests, "post", lambda *a, **k: reply(401, text="bad key"))
+    with pytest.raises(LLMError, match="refused the key"):
+        v1.chat_detailed("s", "u", provider="remote")
+
+
+def test_remote_turn_reads_tool_calls_and_maps_a_bad_tool_call_400(remote, monkeypatch):
+    body = {"choices": [{"message": {"content": "", "tool_calls": [
+        {"id": "x1", "function": {"name": "find_tests", "arguments": "{}"}}]}}],
+        "usage": {"prompt_tokens": 4, "completion_tokens": 2}}
+    monkeypatch.setattr(v1.requests, "post", lambda *a, **k: reply(body=body))
+    turn = agent_llm.chat_with_tools([{"role": "user", "content": "hi"}], [{"type": "function"}], provider="remote")
+    assert turn.tool_calls[0].name == "find_tests" and turn.provider == "remote"
+    monkeypatch.setattr(v1.requests, "post", lambda *a, **k: reply(400, text="invalid function call"))
+    with pytest.raises(MalformedToolCall):
+        agent_llm.chat_with_tools([{"role": "user", "content": "hi"}], [{"type": "function"}], provider="remote")
+
+
+def test_auto_never_picks_the_remote_provider():
+    assert "remote" in v1.PROVIDERS and v1.active_provider("auto") == "auto"
+
+
+def test_tool_call_extras_such_as_gemini_thought_signatures_are_sent_back():
+    raw = [{"id": "c1", "function": {"name": "find_tests", "arguments": "{}"},
+            "extra_content": {"google": {"thought_signature": "SIG"}}}]
+    calls = agent_llm._parse_calls(raw)
+    assert calls[0].extra == {"google": {"thought_signature": "SIG"}}
+    sent = agent_llm._assistant_message("", calls)["tool_calls"][0]
+    assert sent["extra_content"]["google"]["thought_signature"] == "SIG"
+    plain = agent_llm._assistant_message("", agent_llm._parse_calls(
+        [{"id": "c2", "function": {"name": "x", "arguments": "{}"}}]))["tool_calls"][0]
+    assert "extra_content" not in plain
+
+
+def test_remote_sends_the_reasoning_effort_when_set(remote, monkeypatch):
+    seen = []
+    monkeypatch.setattr(v1, "REMOTE_REASONING_EFFORT", "low")
+    monkeypatch.setattr(v1.requests, "post", lambda url, json=None, **k: seen.append(json) or reply(
+        body={"choices": [{"message": {"content": "ok"}}]}))
+    v1.chat_detailed("s", "u", provider="remote")
+    agent_llm.chat_with_tools([{"role": "user", "content": "x"}], [], provider="remote")
+    assert [p["reasoning_effort"] for p in seen] == ["low", "low"]
+    monkeypatch.setattr(v1, "REMOTE_REASONING_EFFORT", "")
+    v1.chat_detailed("s", "u", provider="remote")
+    assert "reasoning_effort" not in seen[-1]
+    

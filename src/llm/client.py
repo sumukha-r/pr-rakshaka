@@ -58,12 +58,22 @@ log = logging.getLogger(__name__)
 # Config
 # ---------------------------------------------------------------------------
 
-PROVIDERS = ("auto", "local", "groq")
+PROVIDERS = ("auto", "local", "groq", "remote")
 PROVIDER = os.getenv("LLM_PROVIDER", "auto").lower()
 
 LOCAL_BASE_URL  = os.getenv("LOCAL_BASE_URL", "http://localhost:11434/v1").rstrip("/")
 LOCAL_MODEL     = os.getenv("LOCAL_MODEL", "qwen2.5-coder:7b")
 LOCAL_TIMEOUT_S = float(os.getenv("LOCAL_TIMEOUT_S", "300"))
+
+# "remote": any hosted OpenAI-compatible API (Gemini's OpenAI endpoint, OpenRouter, Together, ...).
+# Never used by "auto". Set REMOTE_BASE_URL, REMOTE_API_KEY and REMOTE_MODEL to use it.
+REMOTE_BASE_URL = os.getenv("REMOTE_BASE_URL", "").rstrip("/")
+REMOTE_API_KEY  = os.getenv("REMOTE_API_KEY", "")
+REMOTE_MODEL    = os.getenv("REMOTE_MODEL", "")
+REMOTE_TIMEOUT_S = float(os.getenv("REMOTE_TIMEOUT_S", "120"))
+# Thinking models (Gemini 3.x) can spend minutes reasoning on a trivial prompt; "low" keeps runs fast.
+# Set REMOTE_REASONING_EFFORT="" to send nothing (for servers that reject the field).
+REMOTE_REASONING_EFFORT = os.getenv("REMOTE_REASONING_EFFORT", "low")
 
 DEFAULT_MODEL    = os.getenv("GROQ_MODEL", "openai/gpt-oss-20b")
 FALLBACK_MODEL   = os.getenv("GROQ_FALLBACK_MODEL", "")
@@ -175,6 +185,73 @@ def _warn_once(msg: str) -> None:
 # ---------------------------------------------------------------------------
 
 _local_json_ok = True   # flips to False if the server rejects response_format
+
+
+def _remote_config() -> tuple[str, str, str]:
+    """(base_url, api_key, model) for the remote provider, or a clear error."""
+    missing = [n for n, v in (("REMOTE_BASE_URL", REMOTE_BASE_URL), ("REMOTE_API_KEY", REMOTE_API_KEY),
+                              ("REMOTE_MODEL", REMOTE_MODEL)) if not v]
+    if missing:
+        raise LLMError("The remote provider needs " + ", ".join(missing) + " to be set "
+                       "(an OpenAI-compatible endpoint, e.g. Gemini: "
+                       "https://generativelanguage.googleapis.com/v1beta/openai).")
+    return REMOTE_BASE_URL, REMOTE_API_KEY, REMOTE_MODEL
+
+
+def post_remote(path: str, payload: dict) -> "requests.Response":
+    """POST to the remote API with the key, retrying 429 (respecting Retry-After) and 5xx."""
+    base, key, _ = _remote_config()
+    last = ""
+    for attempt in range(1, MAX_ATTEMPTS + 1):
+        try:
+            resp = requests.post(f"{base}{path}", json=payload, timeout=REMOTE_TIMEOUT_S,
+                                 headers={"Authorization": f"Bearer {key}"})
+        except (requests.ConnectionError, requests.Timeout) as exc:
+            last = f"{type(exc).__name__}"
+            if attempt < MAX_ATTEMPTS:
+                time.sleep(BASE_BACKOFF_S * 2 ** (attempt - 1))
+                continue
+            raise LLMError(f"Remote API unreachable or too slow ({last}).") from exc
+        if resp.status_code == 429 or resp.status_code >= 500:
+            last = f"{resp.status_code}: {resp.text[:150]}"
+            try:
+                wait = float((getattr(resp, "headers", None) or {}).get("retry-after") or 0)
+            except (TypeError, ValueError):
+                wait = 0.0
+            wait = wait or BASE_BACKOFF_S * 2 ** (attempt - 1)
+            if resp.status_code == 429 and wait > MAX_WAIT_S:
+                raise LLMError(f"Remote API rate limit reached (wait {wait:.0f}s, likely a daily cap).")
+            if attempt < MAX_ATTEMPTS:
+                _warn_once(f"remote API {resp.status_code}; retrying") if attempt == 1 else None
+                time.sleep(min(wait, MAX_WAIT_S))
+                continue
+            raise LLMError(f"Remote API error after {MAX_ATTEMPTS} attempts ({last}).")
+        if resp.status_code in (401, 403):
+            raise LLMError(f"Remote API refused the key ({resp.status_code}): {resp.text[:150]}")
+        return resp
+    raise LLMError(f"Remote API failed ({last}).")
+
+
+def _remote_call(model: str, messages: list[dict], *, temperature: float,
+                 max_tokens: int, json_mode: bool) -> CallResult:
+    start = time.monotonic()
+    payload = {"model": model, "messages": messages, "temperature": temperature,
+               "max_tokens": max_tokens, "stream": False}
+    if json_mode:
+        payload["response_format"] = {"type": "json_object"}
+    if REMOTE_REASONING_EFFORT:
+        payload["reasoning_effort"] = REMOTE_REASONING_EFFORT
+    resp = post_remote("/chat/completions", payload)
+    if resp.status_code == 400 and json_mode:                      # JSON mode not supported: retry plain
+        payload.pop("response_format")
+        resp = post_remote("/chat/completions", payload)
+    if resp.status_code >= 400:
+        raise LLMError(f"Remote API error {resp.status_code}: {resp.text[:300]}")
+    data = resp.json()
+    text = (data.get("choices") or [{}])[0].get("message", {}).get("content") or ""
+    usage = data.get("usage") or {}
+    return CallResult(text, "remote", model, int(usage.get("prompt_tokens") or 0),
+                      int(usage.get("completion_tokens") or 0), time.monotonic() - start)
 
 
 def _local_call(model: str, messages: list[dict], *, temperature: float,
@@ -382,6 +459,8 @@ def chat_detailed(system: str, user: str, *, model: Optional[str] = None,
 
     if prov == "groq":
         result = _groq_with_fallback(model, messages, **kw)
+    elif prov == "remote":
+        result = _remote_call(model or _remote_config()[2], messages, **kw)
     elif prov == "local":
         try:
             result = _local_call(model or LOCAL_MODEL, messages, **kw)
@@ -500,3 +579,4 @@ if __name__ == "__main__":
     except LLMError as err:
         print(f"[client] {err}")
         sys.exit(1)
+        

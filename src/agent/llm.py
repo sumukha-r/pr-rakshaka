@@ -41,6 +41,7 @@ class ToolCall:
     name: str
     arguments: dict
     error: str = ""            # set when the arguments could not be parsed
+    extra: dict = field(default_factory=dict)   # provider extras that must be sent back (Gemini thought signature)
 
 
 @dataclass
@@ -69,7 +70,8 @@ def _parse_calls(raw_calls) -> list[ToolCall]:
                 args, err = {}, "arguments were not valid JSON"
         if not isinstance(args, dict):
             args, err = {}, err or "arguments were not a JSON object"
-        calls.append(ToolCall(cid, get("name") or "", args, err))
+        extra = rc.get("extra_content") if isinstance(rc, dict) else getattr(rc, "extra_content", None)
+        calls.append(ToolCall(cid, get("name") or "", args, err, extra if isinstance(extra, dict) else {}))
     return calls
 
 
@@ -77,7 +79,8 @@ def _assistant_message(content: str, calls: list[ToolCall]) -> dict:
     msg: dict = {"role": "assistant", "content": content or ""}
     if calls:
         msg["tool_calls"] = [{"id": c.id, "type": "function",
-                              "function": {"name": c.name, "arguments": json.dumps(c.arguments)}}
+                              "function": {"name": c.name, "arguments": json.dumps(c.arguments)},
+                              **({"extra_content": c.extra} if c.extra else {})}
                              for c in calls]
     return msg
 
@@ -163,6 +166,29 @@ def _local_turn(model: str, messages, tools, temperature, max_tokens) -> Turn:
                 _assistant_message(content, calls))
 
 
+def _remote_turn(model: str, messages, tools, temperature, max_tokens) -> Turn:
+    payload = {"model": model, "messages": messages, "temperature": temperature,
+               "max_tokens": max_tokens, "stream": False}
+    if tools:
+        payload["tools"] = tools
+    if v1.REMOTE_REASONING_EFFORT:
+        payload["reasoning_effort"] = v1.REMOTE_REASONING_EFFORT
+    start = time.monotonic()
+    resp = v1.post_remote("/chat/completions", payload)
+    if resp.status_code == 400 and tools and any(k in resp.text.lower() for k in ("tool", "function")):
+        raise MalformedToolCall(resp.text[:200])           # most hosted APIs: a bad tool call is a 400
+    if resp.status_code >= 400:
+        raise v1.LLMError(f"Remote API error {resp.status_code}: {resp.text[:300]}")
+    data = resp.json()
+    msg = (data.get("choices") or [{}])[0].get("message", {})
+    calls = _parse_calls(msg.get("tool_calls"))
+    usage = data.get("usage") or {}
+    content = msg.get("content") or ""
+    return Turn(content, calls, "remote", model, int(usage.get("prompt_tokens") or 0),
+                int(usage.get("completion_tokens") or 0), time.monotonic() - start,
+                _assistant_message(content, calls))
+
+
 def chat_with_tools(messages: list[dict], tools: list[dict], *, provider: Optional[str] = None,
                     model: Optional[str] = None, temperature: float = 0.0,
                     max_tokens: int = v1.DEFAULT_MAX_TOKENS) -> Turn:
@@ -170,6 +196,8 @@ def chat_with_tools(messages: list[dict], tools: list[dict], *, provider: Option
     prov = v1.active_provider(provider)
     if prov == "groq":
         turn = _groq_turn(model or v1.DEFAULT_MODEL, messages, tools, temperature, max_tokens)
+    elif prov == "remote":
+        turn = _remote_turn(model or v1._remote_config()[2], messages, tools, temperature, max_tokens)
     elif prov == "local":
         try:
             turn = _local_turn(model or v1.LOCAL_MODEL, messages, tools, temperature, max_tokens)

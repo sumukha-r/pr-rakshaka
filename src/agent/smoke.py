@@ -3,6 +3,7 @@ smoke.py — check that tool calling works end to end on a real PR and a real mo
 
     python -m src.agent.smoke https://github.com/owner/repo/pull/123 --provider groq
     python -m src.agent.smoke <PR URL> --provider local --trace trace.json
+    python -m src.agent.smoke <PR URL> --provider remote
 
 The task is deliberately small: for each changed source file, find the tests that
 cover it. It exercises find_tests and read_file, prints every tool call, and shows
@@ -21,7 +22,7 @@ from src.agent.github import GitHubReader
 from src.agent.loop import Budget, run_agent
 from src.agent.tools import AgentContext, RepoTools, make_index_search
 from src.ingestion.pr_parser import fetch_pr_from_url
-from src.llm.client import LLMError
+from src.llm.client import PROVIDERS, LLMError
 from src.llm.prompts import is_test_file
 
 SYSTEM = (
@@ -36,7 +37,7 @@ SYSTEM = (
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("pr_url")
-    ap.add_argument("--provider", choices=["auto", "local", "groq"])
+    ap.add_argument("--provider", choices=PROVIDERS)
     ap.add_argument("--model")
     ap.add_argument("--trace", help="write the full trace to this JSON file")
     args = ap.parse_args(argv)

@@ -68,7 +68,7 @@ def needs_retry(path: Path) -> bool:
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="Run the pipeline over the dev or test split.")
     ap.add_argument("--split", choices=["dev", "test"], required=True)
-    ap.add_argument("--provider", choices=["groq", "local"], required=True)
+    ap.add_argument("--provider", choices=["groq", "local", "remote"], required=True)
     ap.add_argument("--mode", choices=["pipeline", "agent"], default="pipeline",
                     help="pipeline = v1 checks; agent = v2 agent checks (saved under <provider>-agent)")
     ap.add_argument("--final", action="store_true", help="required for the test split")
