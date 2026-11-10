@@ -221,3 +221,10 @@ def test_score_reports_time_tokens_and_tool_calls_per_pr():
     assert score.score_run(labels, ["a"], {"a": v1}, {})["missing_tests"]["tokens_per_pr"] is None
     table = score.format_table("groq-agent", score.score_run(labels, ["a"], {"a": run}, {}))
     assert "sec/PR" in table and "3000" in table
+
+
+def test_agent_prompt_requires_a_test_of_the_new_behaviour_not_just_the_function():
+    from src.agent.prompts import MISSING_TESTS_AGENT_SYSTEM as p
+    assert "NEW behaviour" in p and "does \nNOT count" not in p
+    assert "NOT count" in p and "name in \"analysis\" the test" in p
+    

@@ -141,7 +141,7 @@ def run_agent(system: str, user: str, tools: RepoTools, *, provider: Optional[st
         ptok, ctok, who = ptok + turn.prompt_tokens, ctok + turn.completion_tokens, (turn.provider, turn.model)
         trace.add("model", step=steps, tools=[c.name for c in turn.tool_calls],
                   prompt_tokens=turn.prompt_tokens, completion_tokens=turn.completion_tokens,
-                  seconds=round(turn.seconds, 2), text=turn.content[:300])
+                  seconds=round(turn.seconds, 2), text=turn.content[:1500])
         if not turn.tool_calls:
             if calls < min_tool_calls and not nudged and steps < budget.max_steps:
                 nudged = True                       # answered without looking: ask once for evidence
@@ -178,7 +178,7 @@ def run_agent(system: str, user: str, tools: RepoTools, *, provider: Optional[st
         ptok, ctok, who = ptok + turn.prompt_tokens, ctok + turn.completion_tokens, (turn.provider, turn.model)
         text = turn.content
         trace.add("model", step=steps + 1, tools=[], prompt_tokens=turn.prompt_tokens,
-                  completion_tokens=turn.completion_tokens, seconds=round(turn.seconds, 2), text=text[:300])
+                  completion_tokens=turn.completion_tokens, seconds=round(turn.seconds, 2), text=text[:1500])
 
     data = _parse(text)
     if data is None and text.strip():                # one repair turn, like v1's retry
@@ -191,7 +191,7 @@ def run_agent(system: str, user: str, tools: RepoTools, *, provider: Optional[st
             turn = None
         if turn is not None:
             ptok, ctok, who = ptok + turn.prompt_tokens, ctok + turn.completion_tokens, (turn.provider, turn.model)
-            trace.add("repair", text=turn.content[:300])
+            trace.add("repair", text=turn.content[:1500])
             text = turn.content
             data = _parse(text)
     return AgentResult(text, data, stop, steps, calls, ptok, ctok, round(time.monotonic() - t0, 2),

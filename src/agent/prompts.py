@@ -15,10 +15,14 @@ You also have tools. Use them to look before you flag, because a test for the ne
 behaviour may live in a file you were not shown:
 1. Call find_tests for the source file.
 2. Read the most likely test files with read_file(pattern=<name of the new function, \
-class or parameter>, ref="head"). A test that calls the changed code, even \
-indirectly, means there is NO finding for that behaviour.
-3. Flag something only after you looked and found no test that reaches it. Say in \
-"analysis" which files you looked at.
+class, argument or branch>, ref="head").
+3. A test counts ONLY if it would fail, or check a different result, without this \
+change: it must exercise the NEW behaviour (the new argument, branch, condition or \
+return value). A test that merely calls the same function for its old behaviour does \
+NOT count, even if the function is well tested overall.
+4. To decide there is NO finding, name in "analysis" the test and the line or assertion \
+that exercises the new behaviour. If you cannot point to one, flag the new behaviour. \
+Say in "analysis" which files you looked at.
 Use as few tool calls as you can and stop as soon as you can decide. "evidence" must \
 still be copied from the source diff you were given, never from a tool result."""
 

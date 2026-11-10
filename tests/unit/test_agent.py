@@ -453,7 +453,7 @@ def test_remote_retries_429_and_then_succeeds_but_gives_up_on_a_daily_cap(remote
     monkeypatch.setattr(v1.requests, "post", lambda *a, **k: answers.pop(0))
     assert v1.chat_detailed("s", "u", provider="remote").text == "ok"
     monkeypatch.setattr(v1.requests, "post", lambda *a, **k: reply(429, headers={"retry-after": "9999"}))
-    with pytest.raises(LLMError, match="rate limit"):
+    with pytest.raises(LLMError, match="daily quota"):
         v1.chat_detailed("s", "u", provider="remote")
 
 
@@ -502,4 +502,35 @@ def test_remote_sends_the_reasoning_effort_when_set(remote, monkeypatch):
     monkeypatch.setattr(v1, "REMOTE_REASONING_EFFORT", "")
     v1.chat_detailed("s", "u", provider="remote")
     assert "reasoning_effort" not in seen[-1]
+
+
+def test_remote_waits_the_retry_delay_google_puts_in_the_body(remote, monkeypatch):
+    sleeps = []
+    monkeypatch.setattr(v1.time, "sleep", lambda s: sleeps.append(s))
+    monkeypatch.setattr(v1, "REMOTE_MIN_INTERVAL_S", 0)
+    body429 = '{"error": {"code": 429, "details": [{"retryDelay": "34s"}]}}'
+    answers = [reply(429, text=body429), reply(body={"choices": [{"message": {"content": "ok"}}]})]
+    monkeypatch.setattr(v1.requests, "post", lambda *a, **k: answers.pop(0))
+    assert v1.chat_detailed("s", "u", provider="remote").text == "ok"
+    assert sleeps == [35.0]
+
+
+def test_remote_stops_at_once_on_a_per_day_quota(remote, monkeypatch):
+    monkeypatch.setattr(v1, "REMOTE_MIN_INTERVAL_S", 0)
+    calls = []
+    monkeypatch.setattr(v1.requests, "post", lambda *a, **k: calls.append(1) or reply(
+        429, text="Quota exceeded for metric: generate_content_free_tier_requests, limit: 20 PerDay"))
+    with pytest.raises(LLMError, match="daily quota"):
+        v1.chat_detailed("s", "u", provider="remote")
+    assert len(calls) == 1
+
+
+def test_remote_spaces_calls_apart(remote, monkeypatch):
+    sleeps = []
+    monkeypatch.setattr(v1.time, "sleep", lambda s: sleeps.append(s))
+    monkeypatch.setattr(v1, "REMOTE_MIN_INTERVAL_S", 5.0)
+    monkeypatch.setattr(v1, "_remote_last_call", v1.time.monotonic())
+    monkeypatch.setattr(v1.requests, "post", lambda *a, **k: reply(body={"choices": [{"message": {"content": "x"}}]}))
+    v1.chat_detailed("s", "u", provider="remote")
+    assert sleeps and 0 < sleeps[0] <= 5.0
     

@@ -73,6 +73,8 @@ REMOTE_MODEL    = os.getenv("REMOTE_MODEL", "")
 REMOTE_TIMEOUT_S = float(os.getenv("REMOTE_TIMEOUT_S", "120"))
 # Thinking models (Gemini 3.x) can spend minutes reasoning on a trivial prompt; "low" keeps runs fast.
 # Set REMOTE_REASONING_EFFORT="" to send nothing (for servers that reject the field).
+REMOTE_MIN_INTERVAL_S = float(os.getenv("REMOTE_MIN_INTERVAL_S", "3"))   # pause between calls (free tiers cap requests per minute)
+REMOTE_MAX_RETRIES = int(os.getenv("REMOTE_MAX_RETRIES", "8"))
 REMOTE_REASONING_EFFORT = os.getenv("REMOTE_REASONING_EFFORT", "low")
 
 DEFAULT_MODEL    = os.getenv("GROQ_MODEL", "openai/gpt-oss-20b")
@@ -198,34 +200,62 @@ def _remote_config() -> tuple[str, str, str]:
     return REMOTE_BASE_URL, REMOTE_API_KEY, REMOTE_MODEL
 
 
+_remote_last_call = 0.0
+
+
+def _remote_throttle() -> None:
+    """Keep at least REMOTE_MIN_INTERVAL_S between calls so a per-minute cap is not hit in the first place."""
+    global _remote_last_call
+    gap = REMOTE_MIN_INTERVAL_S - (time.monotonic() - _remote_last_call)
+    if gap > 0:
+        time.sleep(gap)
+    _remote_last_call = time.monotonic()
+
+
+def _remote_wait(resp, attempt: int) -> float:
+    """Seconds to wait after a 429: Retry-After, else the retryDelay Google puts in the body, else a ramp."""
+    try:
+        wait = float((getattr(resp, "headers", None) or {}).get("retry-after") or 0)
+    except (TypeError, ValueError):
+        wait = 0.0
+    if not wait:
+        m = (re.search(r'"retryDelay"\s*:\s*"(\d+(?:\.\d+)?)s"', resp.text or "")
+             or re.search(r"retry in (\d+(?:\.\d+)?)s", resp.text or "", re.I))
+        wait = float(m.group(1)) + 1 if m else 0.0
+    return wait or min(15.0 * attempt, MAX_WAIT_S)
+
+
 def post_remote(path: str, payload: dict) -> "requests.Response":
-    """POST to the remote API with the key, retrying 429 (respecting Retry-After) and 5xx."""
+    """POST to the remote API with the key. Waits out per-minute limits (429) and retries 5xx;
+    stops at once on a daily cap or a bad key."""
     base, key, _ = _remote_config()
     last = ""
-    for attempt in range(1, MAX_ATTEMPTS + 1):
+    for attempt in range(1, REMOTE_MAX_RETRIES + 1):
+        _remote_throttle()
         try:
             resp = requests.post(f"{base}{path}", json=payload, timeout=REMOTE_TIMEOUT_S,
                                  headers={"Authorization": f"Bearer {key}"})
         except (requests.ConnectionError, requests.Timeout) as exc:
-            last = f"{type(exc).__name__}"
-            if attempt < MAX_ATTEMPTS:
-                time.sleep(BASE_BACKOFF_S * 2 ** (attempt - 1))
+            last = type(exc).__name__
+            if attempt < REMOTE_MAX_RETRIES:
+                time.sleep(BASE_BACKOFF_S * 2 ** min(attempt - 1, 4))
                 continue
             raise LLMError(f"Remote API unreachable or too slow ({last}).") from exc
         if resp.status_code == 429 or resp.status_code >= 500:
-            last = f"{resp.status_code}: {resp.text[:150]}"
-            try:
-                wait = float((getattr(resp, "headers", None) or {}).get("retry-after") or 0)
-            except (TypeError, ValueError):
-                wait = 0.0
-            wait = wait or BASE_BACKOFF_S * 2 ** (attempt - 1)
-            if resp.status_code == 429 and wait > MAX_WAIT_S:
-                raise LLMError(f"Remote API rate limit reached (wait {wait:.0f}s, likely a daily cap).")
-            if attempt < MAX_ATTEMPTS:
-                _warn_once(f"remote API {resp.status_code}; retrying") if attempt == 1 else None
-                time.sleep(min(wait, MAX_WAIT_S))
+            last = f"{resp.status_code}: {(resp.text or '')[:150]}"
+            if resp.status_code == 429:
+                wait = _remote_wait(resp, attempt)
+                if re.search(r"per ?day|daily", resp.text or "", re.I) or wait > MAX_WAIT_S:
+                    raise LLMError("Remote API daily quota used up (or a wait over a minute): "
+                                   "try again after it resets, then run with --retry-failed.")
+            else:
+                wait = BASE_BACKOFF_S * 2 ** min(attempt - 1, 4)
+            if attempt < REMOTE_MAX_RETRIES:
+                log.warning("remote API %s; waiting %.0fs (try %d/%d)", resp.status_code, wait,
+                            attempt, REMOTE_MAX_RETRIES)
+                time.sleep(wait)
                 continue
-            raise LLMError(f"Remote API error after {MAX_ATTEMPTS} attempts ({last}).")
+            raise LLMError(f"Remote API still failing after {REMOTE_MAX_RETRIES} tries ({last}).")
         if resp.status_code in (401, 403):
             raise LLMError(f"Remote API refused the key ({resp.status_code}): {resp.text[:150]}")
         return resp

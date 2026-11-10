@@ -31,7 +31,8 @@ def test_compare_lists_lost_gained_not_run_and_extra(tmp_path, monkeypatch):
     tdir = tmp_path / "agent" / "traces"
     tdir.mkdir(parents=True)
     (tdir / "p1__missing_tests__a.json").write_text(json.dumps(
-        {"events": [{"kind": "model"}, {"kind": "tool", "name": "find_tests"}]}))
+        {"events": [{"kind": "model", "text": "first"}, {"kind": "tool", "name": "find_tests"},
+                    {"kind": "model", "text": '{"analysis": "tests already\ncover it", "findings": []}'}]}))
     base = {"p1": run([f("x = 1")]), "p2": run([]), "p3": run([f("x = 1")]), "p4": run([])}
     other = {"p1": run([]), "p2": run([f("x = 1")]),
              "p3": run(status="failed", note="model error: boom"), "p4": run([f("y = 2")])}
@@ -42,6 +43,8 @@ def test_compare_lists_lost_gained_not_run_and_extra(tmp_path, monkeypatch):
     assert r["extra"][0]["id"] == "p4"
     text = cr.format_report(r, "base", "agent")
     assert "find_tests" in text and "model error: boom" in text and "p2" in text
+    assert r["lost"][0]["final"] == ['{"analysis": "tests already cover it", "findings": []}']
+    assert "agent said:" in text and "tests already cover it" in text
 
 
 def test_a_lost_target_with_no_trace_says_none():

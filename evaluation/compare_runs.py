@@ -39,6 +39,21 @@ def trace_calls(split: str, provider: str, pid: str, check: str) -> list[str]:
     return names
 
 
+def trace_finals(split: str, provider: str, pid: str, check: str, limit: int = 700) -> list[str]:
+    """The agent's last reply (first `limit` chars, one per file it reviewed) for this PR+check."""
+    d = run_dir(split, provider) / "traces"
+    out: list[str] = []
+    for p in sorted(d.glob(f"{pid}__{check}__*.json")) if d.exists() else []:
+        try:
+            events = json.loads(p.read_text(encoding="utf-8")).get("events", [])
+        except (OSError, ValueError):
+            continue
+        texts = [e.get("text", "") for e in events if e.get("kind") in ("model", "repair") and e.get("text")]
+        if texts:
+            out.append(" ".join(texts[-1].split())[:limit])
+    return out
+
+
 def _found(res: Optional[dict], targets: list[dict]) -> list[bool]:
     found = (res or {}).get("findings", [])
     return [any(matches(f, t) for f in found) for t in targets]
@@ -63,7 +78,10 @@ def compare(labels: dict, ids: list[str], base_runs: dict, other_runs: dict,
             for i, t in enumerate(targets):
                 if b_ok and bf[i] and not of[i]:
                     out["lost"].append({"id": pid, "check": check, "target": t.get("evidence_contains") or t.get("file", ""),
-                                        "tools": trace_calls(split, other_name, pid, check) if other_name else []})
+                                        "tools": trace_calls(split, other_name, pid, check) if other_name else [],
+                                        "final": trace_finals(split, other_name, pid, check) if other_name else [],
+                                        "raw": (o.get("metrics") or {}).get("raw_findings"),
+                                        "dropped": (o.get("metrics") or {}).get("dropped")})
                 elif of[i] and not (b_ok and bf[i]):
                     out["gained"].append({"id": pid, "check": check, "target": t.get("evidence_contains") or t.get("file", "")})
             extras = [f for f in o.get("findings", []) if not any(matches(f, t) for t in targets)]
@@ -78,7 +96,12 @@ def format_report(r: dict, base: str, other: str) -> str:
     L.append(f"NOT RUN in {other} ({len(r['not_run'])}):")
     L += [f"  {x['id']} {x['check']}  [{base} {'ran' if x['base_ran'] else 'also failed'}]  {x['note'][:110]}" for x in r["not_run"]] or ["  none"]
     L.append(f"\nLOST: {base} hit, {other} missed ({len(r['lost'])}):")
-    L += [f"  {x['id']} {x['check']}  target={x['target'][:50]!r}  tool calls: {', '.join(x['tools']) or 'NONE'}" for x in r["lost"]] or ["  none"]
+    for x in r["lost"]:
+        L.append(f"  {x['id']} {x['check']}  target={x['target'][:50]!r}  tool calls: {', '.join(x['tools']) or 'NONE'}"
+                 f"  (raw findings {x.get('raw')}, dropped by filters {x.get('dropped')})")
+        L += [f"      agent said: {t}" for t in x.get("final", [])]
+    if not r["lost"]:
+        L.append("  none")
     L.append(f"\nGAINED: {other} hit, {base} missed ({len(r['gained'])}):")
     L += [f"  {x['id']} {x['check']}  target={x['target'][:50]!r}" for x in r["gained"]] or ["  none"]
     L.append(f"\nEXTRA findings in {other} matching no label ({len(r['extra'])} PR+check):")
