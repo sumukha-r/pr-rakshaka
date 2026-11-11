@@ -9,7 +9,16 @@ candidates, the agent is told they are only a starting point.
 
 from src.llm.prompts import MISSING_TESTS_SYSTEM, _cut
 
-MISSING_TESTS_AGENT_SYSTEM = MISSING_TESTS_SYSTEM + """
+# The v1 prompt says "a test that calls the changed function, even indirectly, covers it". With tools
+# that sentence made the agent declare almost anything covered (dev round 1), so the agent's prompt
+# replaces it with the stricter rule below. v1's own prompt is left as it was.
+_V1_COVERAGE_RULE = ("a test that calls the changed function or class, even indirectly, covers it. "
+                     "Flag only what no changed test line reaches.")
+assert _V1_COVERAGE_RULE in MISSING_TESTS_SYSTEM, "v1 prompt changed: update the agent's override"
+_STRICT_COVERAGE_RULE = ("a test covers the change only if it exercises the NEW behaviour, as set out "
+                         "in the numbered rules below. Being the same function is not enough.")
+
+MISSING_TESTS_AGENT_SYSTEM = MISSING_TESTS_SYSTEM.replace(_V1_COVERAGE_RULE, _STRICT_COVERAGE_RULE) + """
 
 You also have tools. Use them to look before you flag, because a test for the new \
 behaviour may live in a file you were not shown:
@@ -20,8 +29,11 @@ class, argument or branch>, ref="head").
 change: it must exercise the NEW behaviour (the new argument, branch, condition or \
 return value). A test that merely calls the same function for its old behaviour does \
 NOT count, even if the function is well tested overall.
-4. To decide there is NO finding, name in "analysis" the test and the line or assertion \
-that exercises the new behaviour. If you cannot point to one, flag the new behaviour. \
+4. To decide there is NO finding, quote in "analysis" the test name AND the assertion \
+line, copied exactly from a file you read, that exercises the new behaviour. "The \
+function is tested" is not a quote. If you cannot quote one, flag the new behaviour. \
+5. A change that guards against a failure (an overflow cast, a copy, a None check) is \
+behaviour: flag it unless a test you quoted triggers that failure case. \
 Say in "analysis" which files you looked at.
 Use as few tool calls as you can and stop as soon as you can decide. "evidence" must \
 still be copied from the source diff you were given, never from a tool result."""

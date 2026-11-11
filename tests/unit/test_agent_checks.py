@@ -225,6 +225,8 @@ def test_score_reports_time_tokens_and_tool_calls_per_pr():
 
 def test_agent_prompt_requires_a_test_of_the_new_behaviour_not_just_the_function():
     from src.agent.prompts import MISSING_TESTS_AGENT_SYSTEM as p
-    assert "NEW behaviour" in p and "does \nNOT count" not in p
-    assert "NOT count" in p and "name in \"analysis\" the test" in p
+    assert "NEW behaviour" in p and "NOT count" in p and 'quote in "analysis" the test name' in p
+    assert "even indirectly, covers it" not in p              # v1's lenient rule is overridden
+    from src.llm.prompts import MISSING_TESTS_SYSTEM as v1
+    assert "even indirectly, covers it" in v1                 # and v1 itself is untouched
     
