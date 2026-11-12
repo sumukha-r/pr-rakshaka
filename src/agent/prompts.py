@@ -7,7 +7,7 @@ look before flagging. The reuse agent has its own prompt: v1 shows three numbere
 candidates, the agent is told they are only a starting point.
 """
 
-from src.llm.prompts import MISSING_TESTS_SYSTEM, _cut
+from src.llm.prompts import HOT_PATH_SYSTEM, MISSING_TESTS_SYSTEM, _cut
 
 # The v1 prompt says "a test that calls the changed function, even indirectly, covers it". With tools
 # that sentence made the agent declare almost anything covered (dev round 1), so the agent's prompt
@@ -95,3 +95,23 @@ def build_agent_reuse_prompt(pr_title: str, new_def, starting_points: list[dict]
         '"evidence": "<exact line from the NEW code>", "message": "<what to reuse and why>"}]}\n'
         'Write "analysis" first. Use "findings": [] if no existing function does the same job.'
     )
+
+
+# v1's smell prompt says "when the diff does not establish repetition, return no finding". The agent can
+# look beyond the diff, so that sentence is widened to include callers it looked at (guarded like above).
+_V1_REPETITION_RULE = "When the diff does not establish repetition, return no finding."
+assert _V1_REPETITION_RULE in HOT_PATH_SYSTEM, "v1 prompt changed: update the smell agent's override"
+
+SMELL_AGENT_SYSTEM = HOT_PATH_SYSTEM.replace(
+    _V1_REPETITION_RULE,
+    "When neither the diff nor a caller you looked at establishes repetition, return no finding.") + """
+
+You also have tools, because the diff alone often cannot tell you whether new code runs repeatedly:
+1. If the added code does costly work (a query, I/O, a scan, a copy, a compile) but no loop around it is \
+visible, call find_callers(<name of the changed function>) to see whether it is called inside a loop or \
+once per item or request. read_file(ref="head") shows the rest of the function if the diff hides its loop.
+2. A finding needs the mechanism shown: a loop in the diff, or a caller you looked at that calls it \
+repeatedly. Name that caller (path and function) in "message".
+3. If find_callers shows no repeated call, or the function is called once, or finds nothing, stay silent.
+Use as few tool calls as you can. "evidence" must be copied from the added lines of the diff, never from \
+a tool result."""

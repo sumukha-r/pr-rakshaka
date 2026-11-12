@@ -57,13 +57,53 @@ def _clip(text: str, limit: int = MAX_OUTPUT_CHARS) -> str:
     return text[:limit].rsplit("\n", 1)[0] + f"\n... (output cut at {limit} characters)"
 
 
+_LOOP_START = re.compile(r"^\s*(async\s+for|for|while)\b")
+_BLOCK_START = re.compile(r"^\s*(async\s+def|def|class)\b")
+
+
+def _indent(line: str) -> int:
+    return len(line) - len(line.lstrip())
+
+
+def _in_loop(lines: list[str], i: int) -> bool:
+    """Is line i inside a for/while loop (or a comprehension) of the same function?"""
+    if re.search(r"\bfor\b.+\bin\b", lines[i]) and re.search(r"[\[({]", lines[i]):
+        return True                                   # a comprehension on the same line
+    here = _indent(lines[i])
+    for j in range(i - 1, -1, -1):
+        ln = lines[j]
+        if not ln.strip() or _indent(ln) >= here:
+            continue
+        if _BLOCK_START.match(ln):
+            return False                              # reached the function boundary
+        if _LOOP_START.match(ln):
+            return True
+        here = _indent(ln)                            # climb to the enclosing block
+    return False
+
+
+def _call_sites(source: str, call: "re.Pattern", first_line: int, where: str, context: int = 2) -> str:
+    """The lines of `source` that match `call`, with context, each marked if inside a loop."""
+    lines = source.splitlines()
+    hits = [i for i, ln in enumerate(lines) if call.search(ln)]
+    if not hits:
+        return ""
+    out = [where]
+    for i in hits[:3]:
+        tag = "  [inside a loop]" if _in_loop(lines, i) else ""
+        lo, hi = max(0, i - context), min(len(lines), i + context + 1)
+        out.append(f"  line {first_line + i}{tag}:")
+        out += [f"    {'>' if j == i else ' '} {lines[j]}" for j in range(lo, hi)]
+    return "\n".join(out)
+
+
 class RepoTools:
     def __init__(self, ctx: AgentContext, reader: GitHubReader):
         self.ctx, self.reader = ctx, reader
         self.seen_paths: set[str] = set()     # every repo path a tool has shown the model
         self.seen_chunks: dict[str, dict] = {}  # "path::symbol" -> hit, for citing what it found
         self._handlers = {"read_file": self.read_file, "find_tests": self.find_tests,
-                          "pr_context": self.pr_context}
+                          "pr_context": self.pr_context, "find_callers": self.find_callers}
         if ctx.index_search:
             self._handlers["search_code"] = self.search_code
         if ctx.similar_search:
@@ -94,6 +134,12 @@ class RepoTools:
                "proof: read the file to confirm it exercises the code.",
                {"source_path": {"type": "string"}}, ["source_path"]),
             fn("pr_context", "The PR title, description and changed files (test files marked).", {}),
+            fn("find_callers",
+               "Find where a function or method is called: in the repository as it was before this PR "
+               "and in the lines this PR adds. Each call site is shown with its surrounding lines and "
+               "marked when it sits inside a for/while loop or comprehension. Use it to learn whether "
+               "new costly code runs repeatedly.",
+               {"name": {"type": "string"}, "max_results": {"type": "integer"}}, ["name"]),
         ]
         if "search_code" in self._handlers:
             specs.append(fn("search_code",
@@ -229,6 +275,40 @@ class RepoTools:
             self.seen_chunks[f"{h['path']}::{h['symbol']}"] = h
         return "\n\n".join(f"{h['path']}  {h['symbol']}  (lines {h['start_line']}-{h['end_line']})\n"
                            f"{_clip(h['snippet'], snippet_chars)}" for h in hits)
+
+    def find_callers(self, name: str, max_results: int = 5) -> str:
+        ident = re.sub(r"\(.*$", "", (name or "").strip()).split(".")[-1].strip()
+        if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", ident):
+            raise ValueError(f"not a function name: {name!r}")
+        k = max(1, min(int(max_results or 5), 8))
+        call = re.compile(rf"(?<![A-Za-z0-9_]){re.escape(ident)}\s*\(")
+        sites: list[str] = []
+        if self.ctx.index_search:
+            for h in self.ctx.index_search(f"{ident}(", k * 4):
+                if re.search(rf"\b(def|class)\s+{re.escape(ident)}\b", h["symbol"]):
+                    continue                                   # the definition itself
+                shown = _call_sites(h["snippet"], call, h["start_line"], f"{h['path']}  {h['symbol']}")
+                if shown:
+                    self.seen_paths.add(h["path"])
+                    sites.append(shown)
+                if len(sites) >= k:
+                    break
+        added = []
+        for f in self.ctx.pr.files:
+            for ln in (f.patch or "").splitlines():
+                if ln.startswith("+") and not ln.startswith("+++") and call.search(ln) \
+                        and not re.search(rf"\bdef\s+{re.escape(ident)}\b", ln):
+                    added.append(f"{f.filename}: {ln[1:].strip()}")
+        out = []
+        if sites:
+            out.append(f"calls to {ident}() before this PR:\n" + "\n\n".join(sites))
+        if added:
+            out.append(f"calls added by this PR:\n" + "\n".join(added[:k * 2]))
+        if not out:
+            return (f"no call to {ident}() found before this PR or in the lines it adds. Either it is new, "
+                    "or it is called in a way a text search cannot see (a callback, a registry, "
+                    "a dynamic name): do not assume it runs in a loop.")
+        return "\n\n".join(out)
 
     def pr_comments(self) -> str:
         comments = self.reader.comments(self.ctx.pr.repo, self.ctx.pr.number)[-10:]

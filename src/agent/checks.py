@@ -28,15 +28,20 @@ from typing import Callable, Optional
 from src.agent.cache import Cache
 from src.agent.github import GitHubReader, ReaderError
 from src.agent.loop import AgentFailed, AgentResult, Budget, run_agent, with_fallback
-from src.agent.prompts import (MISSING_TESTS_AGENT_SYSTEM, REUSE_AGENT_SYSTEM,
+from src.agent.prompts import (MISSING_TESTS_AGENT_SYSTEM, REUSE_AGENT_SYSTEM, SMELL_AGENT_SYSTEM,
                                build_agent_reuse_prompt)
 from src.agent.tools import AgentContext, RepoTools, make_index_search, make_similar_search
+from src.checks.hot_path_smells import MAX_FILES as MAX_SMELL_FILES
+from src.checks.hot_path_smells import _candidate_files as _smell_files
+from src.checks.hot_path_smells import _finding_from as _smell_finding
+from src.checks.hot_path_smells import _signals as _smell_signals
 from src.checks.missing_tests import MAX_FINDINGS_PER_FILE, MAX_SOURCE_FILES, MAX_TEST_FILES, _candidate_files
 from src.checks.reuse_detector import _already_calls, _is_self, _last_name
 from src.ingestion.diff_defs import AddedDef
 from src.ingestion.pr_parser import PullRequest
 from src.llm.aggregator import Finding, is_substantive, keep_evidenced, limit_per_file
-from src.llm.prompts import build_missing_tests_prompt, is_test_file
+from src.checks.smell_catalog import catalogue_text
+from src.llm.prompts import build_hot_path_prompt, build_missing_tests_prompt, is_test_file
 from src.rag.fingerprint import structurally_identical
 
 log = logging.getLogger(__name__)
@@ -251,12 +256,59 @@ def agent_reuse(pr: PullRequest, reader: GitHubReader, *, budget: Optional[Budge
 
 
 # ---------------------------------------------------------------------------
+# Hot-path smell
+# ---------------------------------------------------------------------------
+
+def agent_smell(pr: PullRequest, reader: GitHubReader, *, budget: Optional[Budget] = None,
+                trace_dir: Optional[Path] = None, report: Optional[dict] = None) -> list[Finding]:
+    """v1's smell check, plus tools to trace callers (is this code really on a hot path?)."""
+    budget = budget or DEFAULT_BUDGET
+    ctx = AgentContext(pr, allow_comments=False, index_search=make_index_search(pr.repo, None))
+    tools = RepoTools(ctx, reader)
+    files = _smell_files(pr)[:MAX_SMELL_FILES]
+    usage, findings, analyses = _Usage(), [], []
+    for f in files:
+        try:
+            full = reader.file_text(pr.repo, f.filename, pr.head_sha) if pr.head_sha else None
+        except ReaderError:
+            full = None                                     # only the radon hint is lost
+        prompt = build_hot_path_prompt(pr.title, f.filename, f.patch or "", _smell_signals(f, full),
+                                       catalogue=catalogue_text())
+        data = _agent_call(SMELL_AGENT_SYSTEM, prompt, tools, budget, usage, pr,
+                           f"smell__{Path(f.filename).stem}", trace_dir)
+        if data is None:
+            continue
+        analyses.append((f.filename, _analysis(data)))
+        raw = data.get("findings", [])
+        for item in raw if isinstance(raw, list) else []:
+            finding = _smell_finding(item, f.filename) if isinstance(item, dict) else None
+            if finding:
+                findings.append(finding)
+    if files and usage.failures == len(files):
+        raise AgentFailed("the agent gave no valid answer for any file")
+
+    patches = {f.filename: f.patch for f in pr.files if f.patch}
+    kept, dropped = keep_evidenced(findings, patches)
+    weak = [f for f in kept if not is_substantive(f)]
+    kept = [f for f in kept if is_substantive(f)]
+    dropped = dropped + weak
+    if report is not None:
+        report.update(files_considered=len(files), raw_findings=len(findings), dropped=len(dropped),
+                      kept_findings=len(kept))
+        usage.into(report)
+        report["_analyses"], report["_dropped"] = analyses, dropped
+    return kept
+
+
+# ---------------------------------------------------------------------------
 # Wiring
 # ---------------------------------------------------------------------------
 
 def agent_runners(*, reader: Optional[GitHubReader] = None, budget: Optional[Budget] = None,
-                  trace_dir: Optional[Path] = None, fallback: bool = False) -> dict:
-    """Runners for main.run_review: missing_tests and reuse as agents, smell unchanged (v1)."""
+                  trace_dir: Optional[Path] = None, fallback: bool = False,
+                  smell_agent: bool = False) -> dict:
+    """Runners for main.run_review: missing_tests and reuse as agents; smell is v1 unless
+    `smell_agent` (milestone 3: the smell check with caller tracing)."""
     from main import default_runners
     base = default_runners()
     reader = reader or GitHubReader(cache=Cache(CACHE_DIR))
@@ -279,5 +331,6 @@ def agent_runners(*, reader: Optional[GitHubReader] = None, budget: Optional[Bud
             pr, reader, budget=budget, trace_dir=trace_dir, report=rep)),
         "reuse": guard("reuse", lambda pr, rep: agent_reuse(
             pr, reader, budget=budget, trace_dir=trace_dir, report=rep)),
-        "smell": base["smell"],
+        "smell": guard("smell", lambda pr, rep: agent_smell(
+            pr, reader, budget=budget, trace_dir=trace_dir, report=rep)) if smell_agent else base["smell"],
     }

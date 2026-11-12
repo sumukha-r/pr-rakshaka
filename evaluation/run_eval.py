@@ -69,8 +69,10 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="Run the pipeline over the dev or test split.")
     ap.add_argument("--split", choices=["dev", "test"], required=True)
     ap.add_argument("--provider", choices=["groq", "local", "remote"], required=True)
-    ap.add_argument("--mode", choices=["pipeline", "agent"], default="pipeline",
-                    help="pipeline = v1 checks; agent = v2 agent checks (saved under <provider>-agent)")
+    ap.add_argument("--mode", choices=["pipeline", "agent", "agent-m3"], default="pipeline",
+                    help="pipeline = v1 checks; agent = v2 agent checks (saved under <provider>-agent); "
+                         "agent-m3 = the same plus the smell agent with caller tracing "
+                         "(saved under <provider>-agent-m3)")
     ap.add_argument("--final", action="store_true", help="required for the test split")
     ap.add_argument("--force", action="store_true", help="re-run PRs that already have output")
     ap.add_argument("--retry-failed", action="store_true",
@@ -83,7 +85,7 @@ def main(argv=None) -> int:
         return 1
     split = json.loads(SPLIT_FILE.read_text())
     ids = split[args.split]
-    out = run_dir(args.split, args.provider + ("-agent" if args.mode == "agent" else ""))
+    out = run_dir(args.split, args.provider + {"agent": "-agent", "agent-m3": "-agent-m3"}.get(args.mode, ""))
 
     if args.split == "test":
         if not args.final:
@@ -102,10 +104,10 @@ def main(argv=None) -> int:
     labels = load_all()
     out.mkdir(parents=True, exist_ok=True)
     runners = None
-    if args.mode == "agent":
+    if args.mode in ("agent", "agent-m3"):
         from src.agent.checks import agent_runners
         # No fallback to v1 here: a failed agent must show up as "not run", not be scored as v1.
-        runners = agent_runners(trace_dir=out / "traces", fallback=False)
+        runners = agent_runners(trace_dir=out / "traces", fallback=False, smell_agent=args.mode == "agent-m3")
     for n, lid in enumerate(ids, 1):
         path = out / f"{lid}.json"
         if path.exists() and not args.force and not (args.retry_failed and needs_retry(path)):

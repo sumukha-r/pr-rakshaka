@@ -13,6 +13,8 @@ How a finding is judged:
     and do not say which model wrote them, so the judging is blind.
     'valid' counts as correct; 'invalid' and 'trivial' count as wrong.
     Until every row is judged, precision is marked provisional.
+    `--auto` also accepts the model's draft verdicts (evaluation/auto_judge.py) where user left
+    `verdict` blank. User verdicts always win.
 
 Reported per check: recall (labelled targets found), precision, how many 'none'
 PRs stayed silent, findings per PR, and how many checks did not run (failed or
@@ -36,7 +38,7 @@ from evaluation.split import SPLIT_FILE
 
 JUDGEMENTS = Path(__file__).parent / "judgements.csv"
 VERDICTS = {"valid": True, "invalid": False, "trivial": False}
-J_COLUMNS = ["key", "id", "check", "file", "evidence", "message", "verdict"]
+J_COLUMNS = ["key", "id", "check", "file", "evidence", "message", "verdict", "auto_verdict", "auto_reason"]
 
 
 def norm(text: str) -> str:
@@ -141,6 +143,23 @@ def score_run(labels: dict[str, dict], ids: list[str], runs: dict[str, dict],
     return out
 
 
+def effective_verdicts(rows: dict[str, dict], use_auto: bool = False) -> tuple[dict[str, str], int]:
+    """key -> verdict. A human verdict always wins; with use_auto, a model's draft fills the blanks.
+    Also returns how many verdicts came from the model."""
+    out, from_model = {}, 0
+    for key, r in rows.items():
+        human = (r.get("verdict") or "").strip()
+        auto = (r.get("auto_verdict") or "").strip()
+        if human:
+            out[key] = human
+        elif use_auto and auto:
+            out[key] = auto
+            from_model += 1
+        else:
+            out[key] = ""
+    return out, from_model
+
+
 def load_judgements(path: Path = JUDGEMENTS) -> dict[str, dict]:
     if not Path(path).exists():
         return {}
@@ -179,6 +198,23 @@ def write_judgements(existing: dict[str, dict], new_rows: list[dict], path: Path
     return len(new_rows)
 
 
+def auto_judge_pending(existing: dict[str, dict], labels: dict, provider: Optional[str] = None,
+                       model: Optional[str] = None, *, get_pr=None, chat=None) -> dict:
+    """Have a model draft a verdict for every row that has neither yours nor a draft yet.
+    `get_pr` and `chat` can be injected (tests); by default they use GitHub and the chosen provider."""
+    from evaluation import auto_judge
+    if get_pr is None:
+        from evaluation.github_api import GitHub
+        from evaluation.snapshot import build_pr
+        gh = GitHub()
+        get_pr = lambda pid: build_pr(gh, labels[pid])          # noqa: E731
+    if chat is None:
+        from src.llm.client import chat_json
+        chat = lambda system, user: chat_json(system, user, provider=provider, model=model)   # noqa: E731
+    return auto_judge.run_judging(list(existing.values()), labels, get_pr, chat,
+                                  save=lambda: write_judgements(existing, []))
+
+
 def load_runs(split: str, provider: str) -> dict[str, dict]:
     d = run_dir(split, provider)
     return {p.stem: json.loads(p.read_text(encoding="utf-8")) for p in sorted(d.glob("*.json"))}
@@ -209,6 +245,13 @@ def main(argv=None) -> int:
     ap.add_argument("--split", choices=["dev", "test"], required=True)
     ap.add_argument("--providers", nargs="+", default=["groq", "local"])
     ap.add_argument("--json", action="store_true")
+    ap.add_argument("--auto", action="store_true",
+                    help="use the model's draft verdicts (auto_judge) where you left a verdict blank")
+    ap.add_argument("--auto-judge", action="store_true",
+                    help="judge every new finding with a model first, then score with those drafts "
+                         "(implies --auto; your own verdicts still win)")
+    ap.add_argument("--judge-provider", help="provider for --auto-judge (ideally not the one being evaluated)")
+    ap.add_argument("--judge-model", help="model for --auto-judge")
     ap.add_argument("--common", action="store_true",
                     help="score only the PRs every listed provider ran, so the tables are comparable")
     args = ap.parse_args(argv)
@@ -228,8 +271,15 @@ def main(argv=None) -> int:
     if new_rows:
         write_judgements(existing, list(new_rows.values()))
         print(f"{len(new_rows)} new finding(s) added to {JUDGEMENTS.name}: fill in the verdict column "
-              f"(valid / invalid / trivial) and run this again")
-    verdicts = {k: r.get("verdict", "") for k, r in existing.items()}
+              f"(valid / invalid / trivial) and run this again, or draft them with "
+              f"`python -m evaluation.auto_judge` and score with --auto")
+        existing.update(new_rows)
+    if args.auto_judge:
+        res = auto_judge_pending(existing, labels, args.judge_provider, args.judge_model)
+        print(f"auto-judged {res['judged']} finding(s), {res['failed']} could not be judged")
+    verdicts, from_model = effective_verdicts(existing, args.auto or args.auto_judge)
+    if from_model:
+        print(f"note: {from_model} verdict(s) come from the model judge, not from you")
 
     only = common_ids(labels, ids, all_runs) if args.common else None
     if only is not None:
