@@ -1,3 +1,8 @@
+# v2.3.2
+
+Updated agent prompts for hot-path smells - tuning
+12-11-2026 13:10 by sumukha0000@gmail.com
+
 # v2.3.1
 
 Added agent M3: hot-path smell check, auto judge for evaluation
@@ -5,7 +10,7 @@ Added agent M3: hot-path smell check, auto judge for evaluation
 
 # v2.2.7
 
-Updated agent prompts - tuning
+Updated agent prompts for reuse and missing checks - tuning
 11-11-2026 16:30 by sumukha0000@gmail.com
 
 # v2.2.6

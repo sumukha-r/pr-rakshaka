@@ -23,7 +23,7 @@ from typing import Optional
 from evaluation.labels import CHECKS, load_all
 from evaluation.run_eval import run_dir
 from evaluation.score import _check_result, load_runs, matches
-from evaluation.split import SPLIT_FILE
+from evaluation.split import SPLIT_FILE, split_names
 
 
 def trace_calls(split: str, provider: str, pid: str, check: str) -> list[str]:
@@ -111,7 +111,7 @@ def format_report(r: dict, base: str, other: str) -> str:
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="Explain the difference between two run sets.")
-    ap.add_argument("--split", choices=["dev", "test"], default="dev")
+    ap.add_argument("--split", choices=split_names(), default="dev")
     ap.add_argument("--base", default="groq")
     ap.add_argument("--other", default="groq-agent")
     args = ap.parse_args(argv)

@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Callable, Optional
 
 from evaluation.labels import load_all, scored_checks
-from evaluation.split import SPLIT_FILE, fingerprint
+from evaluation.split import SPLIT_FILE, fingerprint, fingerprint_key, split_names
 
 RUN_DIR = Path(__file__).parent / "runs"
 
@@ -67,7 +67,7 @@ def needs_retry(path: Path) -> bool:
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="Run the pipeline over the dev or test split.")
-    ap.add_argument("--split", choices=["dev", "test"], required=True)
+    ap.add_argument("--split", choices=split_names(), required=True)
     ap.add_argument("--provider", choices=["groq", "local", "remote"], required=True)
     ap.add_argument("--mode", choices=["pipeline", "agent", "agent-m3"], default="pipeline",
                     help="pipeline = v1 checks; agent = v2 agent checks (saved under <provider>-agent); "
@@ -87,12 +87,12 @@ def main(argv=None) -> int:
     ids = split[args.split]
     out = run_dir(args.split, args.provider + {"agent": "-agent", "agent-m3": "-agent-m3"}.get(args.mode, ""))
 
-    if args.split == "test":
+    if args.split.startswith("test"):
         if not args.final:
-            print("the test split needs --final: run it once, after your last prompt change",
+            print(f"the {args.split} split needs --final: run it once, after your last prompt change",
                   file=sys.stderr)
             return 1
-        if fingerprint(ids) != split["test_fingerprint"]:
+        if fingerprint(ids) != split[fingerprint_key(args.split)]:
             print("test labels changed since the split was made; this is no longer an unseen set",
                   file=sys.stderr)
             return 1

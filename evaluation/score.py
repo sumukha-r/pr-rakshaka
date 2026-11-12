@@ -13,8 +13,8 @@ How a finding is judged:
     and do not say which model wrote them, so the judging is blind.
     'valid' counts as correct; 'invalid' and 'trivial' count as wrong.
     Until every row is judged, precision is marked provisional.
-    `--auto` also accepts the model's draft verdicts (evaluation/auto_judge.py) where user left
-    `verdict` blank. User verdicts always win.
+    `--auto` also accepts the model's draft verdicts (evaluation/auto_judge.py) where you left
+    `verdict` blank. Your own verdicts always win.
 
 Reported per check: recall (labelled targets found), precision, how many 'none'
 PRs stayed silent, findings per PR, and how many checks did not run (failed or
@@ -34,7 +34,7 @@ from typing import Optional
 
 from evaluation.labels import CHECKS, load_all
 from evaluation.run_eval import run_dir
-from evaluation.split import SPLIT_FILE
+from evaluation.split import SPLIT_FILE, split_names
 
 JUDGEMENTS = Path(__file__).parent / "judgements.csv"
 VERDICTS = {"valid": True, "invalid": False, "trivial": False}
@@ -242,7 +242,7 @@ def format_table(provider: str, result: dict) -> str:
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="Score saved reviews against the labels.")
-    ap.add_argument("--split", choices=["dev", "test"], required=True)
+    ap.add_argument("--split", choices=split_names(), required=True)
     ap.add_argument("--providers", nargs="+", default=["groq", "local"])
     ap.add_argument("--json", action="store_true")
     ap.add_argument("--auto", action="store_true",

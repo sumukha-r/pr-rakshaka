@@ -584,4 +584,43 @@ def test_retry_failed_picks_up_errors_and_failed_checks_only(tmp_path):
     err.write_text(json.dumps({"error": "boom", "checks": []}))
     junk.write_text("{not json")
     assert [run_eval.needs_retry(p) for p in (ok, bad, err, junk)] == [False, True, True, True]
+
+
+def test_a_later_round_splits_only_new_labels_and_leaves_the_old_sets_alone(workspace, monkeypatch, capsys):
+    assert split.main(["--seed", "3"]) == 0
+    before = json.loads((workspace / "split.json").read_text())
+    for n in range(20, 28):                                           # eight newly labelled PRs
+        label = make_label(n, "o/t", missing_tests="finding" if n % 2 else "none")
+        (lab.LABEL_DIR / f"{label['id']}.json").write_text(json.dumps(label))
+    assert split.main(["--round", "2", "--seed", "9"]) == 0
+    after = json.loads((workspace / "split.json").read_text())
+    for key in ("dev", "test", "test_fingerprint", "seed"):           # old round: byte for byte the same
+        assert after[key] == before[key]
+    new_ids = {i for i in lab.load_all() if i.startswith("o__t__")}
+    assert set(after["dev2"]) | set(after["test2"]) == new_ids and not set(after["dev2"]) & set(after["test2"])
+    assert after["test2_fingerprint"] == split.fingerprint(after["test2"])
+    assert split.main(["--round", "2", "--seed", "10"]) == 1          # made once
+    assert "already exists" in capsys.readouterr().err
+    assert split.split_names() == ["dev", "test", "dev2", "test2"]
+
+
+def test_the_second_round_test_split_is_protected_like_the_first(workspace, monkeypatch, capsys):
+    split.main(["--seed", "3"])
+    for n in range(20, 28):
+        label = make_label(n, "o/t", missing_tests="finding" if n % 2 else "none")
+        (lab.LABEL_DIR / f"{label['id']}.json").write_text(json.dumps(label))
+    split.main(["--round", "2", "--seed", "9"])
+    monkeypatch.setattr(run_eval, "run_one", fake_run)
+    base = ["--split", "test2", "--provider", "groq"]
+    assert run_eval.main(base) == 1 and "--final" in capsys.readouterr().err
+    assert run_eval.main(base + ["--final"]) == 0
+    assert run_eval.main(base + ["--final"]) == 1
+    assert run_eval.main(["--split", "dev2", "--provider", "groq"]) == 0      # dev2 is free to run
+    test_id = json.loads((workspace / "split.json").read_text())["test2"][0]
+    path = lab.LABEL_DIR / f"{test_id}.json"
+    data = json.loads(path.read_text())
+    data["edge_case"] = "edited later"
+    path.write_text(json.dumps(data))
+    assert run_eval.main(["--split", "test2", "--provider", "local", "--final"]) == 1
+    assert "no longer an unseen set" in capsys.readouterr().err
     

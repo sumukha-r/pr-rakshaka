@@ -58,11 +58,59 @@ def fingerprint(ids: list[str], labels: Optional[dict] = None) -> str:
     return h.hexdigest()
 
 
+def split_names() -> list[str]:
+    """Every split name in split.json: dev, test, and any later rounds (dev2, test2, ...)."""
+    if not SPLIT_FILE.exists():
+        return ["dev", "test"]
+    names = [k for k, v in json.loads(SPLIT_FILE.read_text()).items() if isinstance(v, list)]
+    return names or ["dev", "test"]
+
+
+def fingerprint_key(split: str) -> str:
+    return "test_fingerprint" if split == "test" else f"{split}_fingerprint"
+
+
+def add_round(labels: dict[str, dict], existing: dict, number: int, seed: int) -> dict:
+    """Split ONLY the labels no earlier split has used into dev<number> / test<number>.
+    The earlier dev and test lists and the old test fingerprint are not touched."""
+    dev, test = f"dev{number}", f"test{number}"
+    if dev in existing or test in existing:
+        raise ValueError(f"round {number} already exists: it is made once")
+    used = {lid for k, v in existing.items() if isinstance(v, list) for lid in v}
+    fresh = {lid: lab for lid, lab in labels.items() if lid not in used}
+    sides = make_split(fresh, seed)
+    return {**existing, f"seed{number}": seed, dev: sides["dev"], test: sides["test"],
+            fingerprint_key(test): fingerprint(sides["test"], labels)}
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="Split labelled PRs into dev and test.")
     ap.add_argument("--seed", type=int, required=True)
+    ap.add_argument("--round", type=int, default=1,
+                    help="1 = the first split. 2+ = split only the labels no earlier split used into "
+                         "dev<N>/test<N>, leaving the old sets exactly as they are")
     ap.add_argument("--force", action="store_true", help="overwrite an existing split (don't)")
     args = ap.parse_args(argv)
+    if args.round > 1:
+        if not SPLIT_FILE.exists():
+            print("make the first split before a later round", file=sys.stderr)
+            return 1
+        labels = load_all()
+        bad = [(lid, p) for lid, lab in labels.items() for p in problems(lab)]
+        if bad:
+            print("fix these labels first (python -m evaluation.labels validate):", file=sys.stderr)
+            for lid, p in bad[:10]:
+                print(f"  {lid}: {p}", file=sys.stderr)
+            return 1
+        try:
+            new = add_round(labels, json.loads(SPLIT_FILE.read_text()), args.round, args.seed)
+        except ValueError as exc:
+            print(exc, file=sys.stderr)
+            return 1
+        SPLIT_FILE.write_text(json.dumps(new, indent=2) + "\n")
+        print(f"dev{args.round}={len(new[f'dev{args.round}'])}  test{args.round}={len(new[f'test{args.round}'])}. "
+              f"Old sets untouched. Commit and tag this now.")
+        return 0
     if SPLIT_FILE.exists() and not args.force:
         print(f"{SPLIT_FILE} exists. The split is made once so the test set stays unseen.",
               file=sys.stderr)
