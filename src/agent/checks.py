@@ -20,6 +20,7 @@ being scored as v1.
 from __future__ import annotations
 
 import logging
+import re
 import types
 from collections import Counter
 from pathlib import Path
@@ -259,6 +260,20 @@ def agent_reuse(pr: PullRequest, reader: GitHubReader, *, budget: Optional[Budge
 # Hot-path smell
 # ---------------------------------------------------------------------------
 
+_DEF_RE = re.compile(r"^\+\s*(?:async\s+)?def\s+([A-Za-z_]\w*)", re.M)
+_HUNK_DEF_RE = re.compile(r"^@@[^@]*@@\s*(?:async\s+)?def\s+([A-Za-z_]\w*)", re.M)
+MAX_CALLER_HINTS = 3
+
+
+def _changed_function_names(patch: str) -> list[str]:
+    """Functions the diff adds or edits (defined on a `+` line, or named in a hunk header), in order."""
+    names: list[str] = []
+    for n in _HUNK_DEF_RE.findall(patch) + _DEF_RE.findall(patch):
+        if n not in names and not n.startswith("__"):
+            names.append(n)
+    return names[:MAX_CALLER_HINTS]
+
+
 def agent_smell(pr: PullRequest, reader: GitHubReader, *, budget: Optional[Budget] = None,
                 trace_dir: Optional[Path] = None, report: Optional[dict] = None) -> list[Finding]:
     """v1's smell check, plus tools to trace callers (is this code really on a hot path?)."""
@@ -274,8 +289,14 @@ def agent_smell(pr: PullRequest, reader: GitHubReader, *, budget: Optional[Budge
             full = None                                     # only the radon hint is lost
         prompt = build_hot_path_prompt(pr.title, f.filename, f.patch or "", _smell_signals(f, full),
                                        catalogue=catalogue_text())
+        changed = _changed_function_names(f.patch or "")
+        if changed:      # the model must look at who calls what changed, not just guess from the diff
+            prompt += ("\n\nFunctions this diff adds or changes: " + ", ".join(changed) +
+                       ". Their callers are not in the diff: check them with find_callers before you "
+                       "answer.")
         data = _agent_call(SMELL_AGENT_SYSTEM, prompt, tools, budget, usage, pr,
-                           f"smell__{Path(f.filename).stem}", trace_dir)
+                           f"smell__{Path(f.filename).stem}", trace_dir,
+                           min_tool_calls=1 if changed else 0)
         if data is None:
             continue
         analyses.append((f.filename, _analysis(data)))
@@ -334,3 +355,4 @@ def agent_runners(*, reader: Optional[GitHubReader] = None, budget: Optional[Bud
         "smell": guard("smell", lambda pr, rep: agent_smell(
             pr, reader, budget=budget, trace_dir=trace_dir, report=rep)) if smell_agent else base["smell"],
     }
+    

@@ -8,4 +8,9 @@ data/raw/
 .venv/
 data/
 evaluation/runs
+evaluation/candidates2.csv
+evaluation/skipped.txt
+evaluation/unreachable.txt
+evaluation/judgements.csv
+evaluation/labels
 *.ipynb_checkpoints

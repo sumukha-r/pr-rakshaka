@@ -153,7 +153,33 @@ def test_agent_smell_with_nothing_to_review_asks_the_model_nothing(monkeypatch, 
     assert run.calls == []
 
 
+def test_changed_function_names_come_from_added_defs_and_hunk_headers():
+    patch = ("@@ -1,3 +1,5 @@ def old_helper(x):\n+def fetch_price(item_id):\n+    return 1\n"
+             "+    async def inner(a):\n+def __init__(self):\n+def fetch_price(again):")
+    assert checks._changed_function_names(patch) == ["old_helper", "fetch_price", "inner"]
+    assert checks._changed_function_names("+x = 1\n+print(x)") == []
+    many = "\n".join(f"+def f{i}(): pass" for i in range(9))
+    assert len(checks._changed_function_names(many)) == checks.MAX_CALLER_HINTS
+
+
+def test_agent_smell_asks_for_caller_tracing_when_a_function_changes(monkeypatch, reader):
+    seen = []
+
+    def run(system, user, tools, *, budget=None, min_tool_calls=0, **kw):
+        seen.append((user, min_tool_calls))
+        return result({"analysis": "x", "findings": []})
+
+    monkeypatch.setattr(checks, "run_agent", run)
+    checks.agent_smell(make_pr(SRC), reader)                      # PATCH adds `def sync`
+    user, minimum = seen[0]
+    assert minimum == 1 and "Functions this diff adds or changes: sync" in user and "find_callers" in user
+    plain = make_file("pkg/consts.py", hunk("+LIMIT = 5", "+for i in range(LIMIT):", "+    print(i)"))
+    checks.agent_smell(make_pr(plain), reader)
+    assert seen[1][1] == 0 and "Functions this diff adds" not in seen[1][0]
+
+
 def test_runners_use_the_smell_agent_only_when_asked(monkeypatch):
     monkeypatch.setattr("main.default_runners", lambda: {"missing_tests": None, "reuse": None, "smell": "v1-smell"})
     assert checks.agent_runners(reader=object())["smell"] == "v1-smell"
     assert checks.agent_runners(reader=object(), smell_agent=True)["smell"] != "v1-smell"
+    
