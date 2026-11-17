@@ -90,7 +90,7 @@ def score_run(labels: dict[str, dict], ids: list[str], runs: dict[str, dict],
     for check in CHECKS:
         m = dict(prs=0, not_run=0, targets=0, hit=0, findings=0, valid=0, wrong=0, pending=0,
                  none_prs=0, silent=0, noisy_valid=0, seconds=0.0, tokens=0, token_prs=0,
-                 tool_calls=0)
+                 tool_calls=0, pr_targets=0, pr_hit=0)
         for pid in ids:
             exp = labels[pid]["checks"][check]["expect"]
             if exp not in ("finding", "none"):
@@ -112,7 +112,11 @@ def score_run(labels: dict[str, dict], ids: list[str], runs: dict[str, dict],
             m["findings"] += len(found)
             targets = labels[pid]["checks"][check]["targets"] if exp == "finding" else []
             m["targets"] += len(targets)
-            m["hit"] += sum(1 for t in targets if any(matches(f, t) for f in found))
+            hits = sum(1 for t in targets if any(matches(f, t) for f in found))
+            m["hit"] += hits
+            if exp == "finding":                       # PR-level view: did it catch the PR's problem at all?
+                m["pr_targets"] += 1
+                m["pr_hit"] += 1 if hits else 0
             extras = []
             for f in found:
                 if any(matches(f, t) for t in targets):
@@ -133,6 +137,7 @@ def score_run(labels: dict[str, dict], ids: list[str], runs: dict[str, dict],
                     for f in found) else 0
         judged = m["valid"] + m["wrong"]
         m["recall"] = round(m["hit"] / m["targets"], 3) if m["targets"] else None
+        m["pr_recall"] = round(m["pr_hit"] / m["pr_targets"], 3) if m["pr_targets"] else None
         m["precision"] = round(m["valid"] / judged, 3) if judged else None
         m["provisional"] = m["pending"] > 0
         m["findings_per_pr"] = round(m["findings"] / m["prs"], 2) if m["prs"] else None
@@ -224,12 +229,13 @@ def format_table(provider: str, result: dict) -> str:
     def pct(x):
         return "n/a" if x is None else f"{x:.0%}"
     lines = [f"\n{provider}",
-             f"{'check':14s} {'PRs':>4s} {'recall':>14s} {'precision':>15s} {'silent on none':>15s} {'per PR':>7s} {'not run':>8s} {'sec/PR':>7s} {'tok/PR':>7s} {'calls':>6s}"]
+             f"{'check':14s} {'PRs':>4s} {'recall':>14s} {'PR recall':>11s} {'precision':>15s} {'silent on none':>15s} {'per PR':>7s} {'not run':>8s} {'sec/PR':>7s} {'tok/PR':>7s} {'calls':>6s}"]
     for check, m in result.items():
         rec = f"{pct(m['recall'])} ({m['hit']}/{m['targets']})"
         prec = f"{pct(m['precision'])} ({m['valid']}/{m['valid'] + m['wrong']})" + ("*" if m["provisional"] else "")
         sil = f"{m['silent']}/{m['none_prs']}"
-        lines.append(f"{check:14s} {m['prs']:>4d} {rec:>14s} {prec:>15s} {sil:>15s} "
+        prr = f"{pct(m['pr_recall'])} ({m['pr_hit']}/{m['pr_targets']})"
+        lines.append(f"{check:14s} {m['prs']:>4d} {rec:>14s} {prr:>11s} {prec:>15s} {sil:>15s} "
                      f"{(m['findings_per_pr'] if m['findings_per_pr'] is not None else 'n/a')!s:>7} {m['not_run']:>8d} "
                      f"{(m.get('seconds_per_pr') if m.get('seconds_per_pr') is not None else 'n/a')!s:>7} "
                      f"{(m.get('tokens_per_pr') if m.get('tokens_per_pr') is not None else 'n/a')!s:>7} "
