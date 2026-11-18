@@ -20,6 +20,7 @@ being scored as v1.
 from __future__ import annotations
 
 import logging
+import os
 import re
 import types
 from collections import Counter
@@ -78,10 +79,21 @@ def _save_trace(trace_dir: Optional[Path], pr: PullRequest, name: str, r: AgentR
         r.trace.write(str(Path(trace_dir) / f"{pr.repo.replace('/', '__')}__{pr.number}__{name}.json"))
 
 
+def _engine() -> Callable:
+    """The plain loop by default; AGENT_ENGINE=langgraph runs the same agent as a LangGraph graph (M5)."""
+    name = os.getenv("AGENT_ENGINE", "").strip().lower()
+    if name in ("", "loop"):
+        return run_agent                      # looked up here so tests can replace checks.run_agent
+    if name == "langgraph":
+        from src.agent.graph import run_agent_graph      # imported only when asked for
+        return run_agent_graph
+    raise ValueError(f"AGENT_ENGINE must be 'loop' or 'langgraph', not {name!r}")
+
+
 def _agent_call(system: str, user: str, tools: RepoTools, budget: Budget, usage: _Usage,
                 pr: PullRequest, name: str, trace_dir: Optional[Path], min_tool_calls: int = 0) -> Optional[dict]:
     """One agent run. Returns the parsed answer, or None (counted as a failure) if it had none."""
-    r = run_agent(system, user, tools, budget=budget, min_tool_calls=min_tool_calls)
+    r = _engine()(system, user, tools, budget=budget, min_tool_calls=min_tool_calls)
     usage.add(r)
     _save_trace(trace_dir, pr, name, r)
     if not r.ok:
@@ -355,4 +367,3 @@ def agent_runners(*, reader: Optional[GitHubReader] = None, budget: Optional[Bud
         "smell": guard("smell", lambda pr, rep: agent_smell(
             pr, reader, budget=budget, trace_dir=trace_dir, report=rep)) if smell_agent else base["smell"],
     }
-    
