@@ -1,3 +1,8 @@
+# v2.6.1
+
+Added agent M6: Airflow DAG and unit tests
+20-11-2026 11:00 by sumukha0000@gmail.com
+
 # v2.5.1
 
 Added agent M5: Tracing
