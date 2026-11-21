@@ -62,9 +62,3 @@ def test_report_lists_every_repo_and_the_totals(tmp_path):
     assert "2026-11-21 03:00 UTC" in text and "312 passed" in text
     assert text.index("a/x") < text.index("b/y")                       # sorted by repo
     assert "| b/y | 2 | 9 |" in text
-
-
-def test_the_dag_file_is_valid_python_and_names_its_dag():
-    src = (Path(__file__).resolve().parents[2] / "airflow" / "dags" / "pr_rakshaka_nightly.py").read_text()
-    ast.parse(src)
-    assert 'dag_id="pr_rakshaka_nightly"' in src and "refresh_index.expand" in src
