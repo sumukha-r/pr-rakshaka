@@ -624,3 +624,30 @@ def test_the_second_round_test_split_is_protected_like_the_first(workspace, monk
     assert run_eval.main(["--split", "test2", "--provider", "local", "--final"]) == 1
     assert "no longer an unseen set" in capsys.readouterr().err
     
+
+def test_a_label_audit_before_any_run_can_be_re_recorded_with_an_audit_trail(workspace, monkeypatch, capsys):
+    split.main(["--seed", "3"])
+    monkeypatch.setattr(run_eval, "run_one", fake_run)
+    test_id = json.loads((workspace / "split.json").read_text())["test"][0]
+    path = lab.LABEL_DIR / f"{test_id}.json"
+    data = json.loads(path.read_text())
+    data["edge_case"] = "audited"
+    path.write_text(json.dumps(data))
+    assert run_eval.main(["--split", "test", "--provider", "groq", "--final"]) == 1     # blocked
+    assert split.main(["--refingerprint", "test"]) == 1                                  # needs a reason
+    assert split.main(["--refingerprint", "test", "--reason", "blind detectability audit"]) == 0
+    saved = json.loads((workspace / "split.json").read_text())
+    assert saved["test_audit"][0]["reason"] == "blind detectability audit"
+    assert saved["test_audit"][0]["previous_fingerprint"] != saved["test_fingerprint"]
+    assert run_eval.main(["--split", "test", "--provider", "groq", "--final"]) == 0     # now allowed
+
+
+def test_re_recording_is_refused_once_a_model_has_run_on_the_split(workspace, monkeypatch, capsys):
+    split.main(["--seed", "3"])
+    monkeypatch.setattr(run_eval, "run_one", fake_run)
+    assert run_eval.main(["--split", "test", "--provider", "groq", "--final"]) == 0
+    capsys.readouterr()
+    assert split.main(["--refingerprint", "test", "--reason", "too late"]) == 1
+    assert "already has results" in capsys.readouterr().err
+    assert split.main(["--refingerprint", "dev", "--reason", "x"]) == 1                  # only test splits
+    

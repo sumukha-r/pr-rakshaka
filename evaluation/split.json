@@ -146,5 +146,12 @@
     "pandas-dev__pandas__48793",
     "pandas-dev__pandas__48795"
   ],
-  "test2_fingerprint": "ac6af976c8ea1e3724679a635953ca19cf3cafb0118bdac0dcbca4e31616c857"
+  "test2_fingerprint": "41ef3e8da2689ecb151d81be80718be8eb0f204de454c735e6ea6769f84b668d",
+  "test2_audit": [
+    {
+      "date": "2026-11-21",
+      "reason": "blind detectability audit: 8 labels set to out_of_scope before any model ran on test2",
+      "previous_fingerprint": "ac6af976c8ea1e3724679a635953ca19cf3cafb0118bdac0dcbca4e31616c857"
+    }
+  ]
 }

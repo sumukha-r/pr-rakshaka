@@ -83,14 +83,58 @@ def add_round(labels: dict[str, dict], existing: dict, number: int, seed: int) -
             fingerprint_key(test): fingerprint(sides["test"], labels)}
 
 
+def has_results(split: str, run_root: Path) -> bool:
+    """True if any provider/mode has saved a result for this split."""
+    base = Path(run_root) / split
+    return base.exists() and any(base.glob("*/*.json"))
+
+
+def refingerprint(split: str, existing: dict, labels: dict, reason: str, run_root: Path,
+                  today: Optional[str] = None) -> dict:
+    """Accept an edit to a test split's labels, but ONLY while no model has run on it.
+
+    The fingerprint exists to prove the labels were not changed after results were seen. A fix made
+    before the first run cannot have been influenced by results, so it is safe to re-record, and the
+    old fingerprint, the reason and the date are kept in split.json as an audit trail."""
+    key = fingerprint_key(split)
+    if not split.startswith("test") or split not in existing or key not in existing:
+        raise ValueError(f"{split!r} is not a test split with a fingerprint")
+    if has_results(split, run_root):
+        raise ValueError(f"{split} already has results: its labels can no longer be changed")
+    if not reason.strip():
+        raise ValueError("say why the labels changed (--reason)")
+    from datetime import date
+    audit = list(existing.get(f"{split}_audit", [])) + [
+        {"date": today or date.today().isoformat(), "reason": reason.strip(),
+         "previous_fingerprint": existing[key]}]
+    return {**existing, key: fingerprint(existing[split], labels), f"{split}_audit": audit}
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="Split labelled PRs into dev and test.")
-    ap.add_argument("--seed", type=int, required=True)
+    ap.add_argument("--seed", type=int)
+    ap.add_argument("--refingerprint", metavar="SPLIT",
+                    help="re-record a test split's label fingerprint after a label audit, allowed only "
+                         "while no model has run on that split")
+    ap.add_argument("--reason", default="", help="with --refingerprint: what was changed and why")
     ap.add_argument("--round", type=int, default=1,
                     help="1 = the first split. 2+ = split only the labels no earlier split used into "
                          "dev<N>/test<N>, leaving the old sets exactly as they are")
     ap.add_argument("--force", action="store_true", help="overwrite an existing split (don't)")
     args = ap.parse_args(argv)
+    if args.refingerprint:
+        from evaluation.run_eval import RUN_DIR
+        try:
+            new = refingerprint(args.refingerprint, json.loads(SPLIT_FILE.read_text()), load_all(),
+                                args.reason, RUN_DIR)
+        except ValueError as exc:
+            print(exc, file=sys.stderr)
+            return 1
+        SPLIT_FILE.write_text(json.dumps(new, indent=2) + "\n")
+        print(f"{args.refingerprint}: fingerprint re-recorded (audit trail kept). Commit split.json now.")
+        return 0
+    if args.seed is None:
+        ap.error("--seed is required")
     if args.round > 1:
         if not SPLIT_FILE.exists():
             print("make the first split before a later round", file=sys.stderr)
@@ -131,3 +175,4 @@ def main(argv=None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+    
