@@ -1,0 +1,5 @@
+# What the GitHub Action installs: no vector store or embedding model, so it starts in about a minute.
+# The "possible reuse" check is skipped there (the repo is not indexed) and says so in the comment.
+requests>=2.31
+groq>=0.11
+radon>=6.0,<7.0

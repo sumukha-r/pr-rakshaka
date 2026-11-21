@@ -1,0 +1,77 @@
+# Reusable workflow: review one pull request with pr-rakshaka and post the result as a comment.
+# It is opt-in: nothing runs until a repository calls it (see examples/github-action-caller.yml).
+#
+# Safe by design: pr-rakshaka reads the PR through the GitHub API. This workflow never checks out
+# or executes the pull request's code; it checks out pr-rakshaka itself.
+name: pr-rakshaka review
+
+on:
+  workflow_call:
+    inputs:
+      pr_url:
+        description: "Full URL of the pull request to review"
+        type: string
+        required: true
+      provider:
+        description: "groq or remote (any OpenAI-compatible API)"
+        type: string
+        default: groq
+      remote_base_url:
+        type: string
+        default: ""
+      remote_model:
+        type: string
+        default: ""
+      rakshaka_ref:
+        description: "Which version of pr-rakshaka to run (tag or branch)"
+        type: string
+        default: main
+    secrets:
+      GROQ_API_KEY:
+        required: false
+      REMOTE_API_KEY:
+        required: false
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out pr-rakshaka (the tool, not the PR)
+        uses: actions/checkout@v4
+        with:
+          repository: sumukha-r/pr-rakshaka
+          ref: ${{ inputs.rakshaka_ref }}
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements-action.txt
+
+      - run: pip install -r requirements-action.txt
+
+      - name: Review the pull request
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          REMOTE_API_KEY: ${{ secrets.REMOTE_API_KEY }}
+          REMOTE_BASE_URL: ${{ inputs.remote_base_url }}
+          REMOTE_MODEL: ${{ inputs.remote_model }}
+          PR_URL: ${{ inputs.pr_url }}
+          PROVIDER: ${{ inputs.provider }}
+        run: python main.py "$PR_URL" --provider "$PROVIDER" --out review.md
+
+      - name: Post or update the comment
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PR_URL: ${{ inputs.pr_url }}
+        run: |
+          repo=$(echo "$PR_URL" | sed -E 's#https://github.com/([^/]+/[^/]+)/pull/[0-9]+.*#\1#')
+          number=$(echo "$PR_URL" | sed -E 's#.*/pull/([0-9]+).*#\1#')
+          python -m src.integrations.github_comment --repo "$repo" --pr "$number" --file review.md

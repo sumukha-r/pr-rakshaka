@@ -1,0 +1,29 @@
+# Copy this file to .github/workflows/rakshaka.yml in YOUR repository to turn pr-rakshaka on.
+# It runs only when a maintainer adds the label "rakshaka" to a pull request.
+#
+# Setup: add a repository secret GROQ_API_KEY (free at console.groq.com), create a label named
+# "rakshaka", then label any pull request. The review appears as one comment that is updated on
+# each re-run (remove and re-add the label).
+name: Rakshaka review
+
+on:
+  pull_request_target:       # runs from the base branch and can use secrets; we never check out PR code
+    types: [labeled]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: rakshaka-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    if: github.event.label.name == 'rakshaka'
+    uses: sumukha-r/pr-rakshaka/.github/workflows/rakshaka-review.yml@main
+    with:
+      pr_url: ${{ github.event.pull_request.html_url }}
+      provider: groq
+    secrets:
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
